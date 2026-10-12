@@ -12,3 +12,15 @@ for source in [#"{"status":"ERROR","command":{"name":"usage","data":{"groups":[]
     do { _ = try ProviderPayload.antigravity(Data(source.utf8)); fatalError("unknown quota accepted") } catch { print("PASS unknown/error quota rejected") }
 }
 do { _ = try ProviderPayload.claude(Data(#"{"five_hour":null}"#.utf8)); fatalError("missing Claude quota accepted") } catch { print("PASS missing Claude quota rejected") }
+
+expect(ProviderReading(snapshot: agy).remaining(for: .antigravity) == 31, "Antigravity capsule selects Gemini despite exhausted other models")
+func group(_ name: String, _ used: Double, _ secondary: Double? = nil) -> QuotaBucket {
+    QuotaBucket(limitId: nil, limitName: name, planType: nil,
+                primary: QuotaWindow(usedPercent: used, windowDurationMins: 10080, resetsAt: nil),
+                secondary: secondary.map { QuotaWindow(usedPercent: $0, windowDurationMins: 300, resetsAt: nil) }, credits: nil)
+}
+let mixed = QuotaSnapshot(rateLimits: nil, rateLimitsByLimitId: ["first": group("Claude and GPT models", 100), "last": group("GEMINI Models", 20, 60), "middle": group("Gemini Pro", 30)])
+expect(ProviderReading(snapshot: mixed).remaining(for: .antigravity) == 40, "Gemini matching ignores order and case and takes restrictive Gemini window")
+let noGemini = QuotaSnapshot(rateLimits: nil, rateLimitsByLimitId: ["other": group("Claude and GPT models", 20)])
+expect(ProviderReading(snapshot: noGemini).remaining(for: .antigravity) == nil, "Missing Gemini is unknown instead of another model quota")
+expect(ProviderReading(snapshot: mixed).remaining(for: .claude) == 0, "Claude selection retains existing aggregation")

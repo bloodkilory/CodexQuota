@@ -1,9 +1,7 @@
-# 余度 QuotaNest 1.4.0
+# 余度 QuotaNest 1.4.1
 
-- 用 OpenAI、Claude Code 像素机器人和 Antigravity 图标替代 CX / CL / AG。
-- 菜单栏胶囊缩窄至 68 点，采用低饱和配色和清晰白色文字。
-- 背景彩色部分按实际剩余额度填充，已用部分为黑色；每 3 分钟查询后同步更新。
-- 查询失败时用灰色保留上次比例并显示 `!`；未知额度显示破折号。
-- 新增实际绘制像素回归测试及主页展示图。
+- Antigravity 菜单栏默认显示 Gemini 分组余量，避免被 Claude / GPT 等其他模型的耗尽额度影响。
+- Gemini 多个有效窗口取最低剩余值；未提供 Gemini 额度时显示 `—`。
+- 其他模型额度继续完整保留在详情中，悬停提示明确标注 Gemini。
 
-macOS 13+, Intel and Apple Silicon. Existing login startup and provider preferences are preserved. Official provider CLIs are separate prerequisites. This community build is ad-hoc signed and not Apple-notarized. See README for first-launch instructions and verify downloads against SHA256SUMS.txt.
+macOS 13+, Intel and Apple Silicon. This community build is ad-hoc signed and not Apple-notarized. See README for installation instructions.

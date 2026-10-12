@@ -28,7 +28,7 @@ QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude 
 
 **系统要求：macOS 13 或更新版本。** DMG 内含 Intel / Apple Silicon 通用应用；对应平台的官方 CLI 需要另外安装并登录。
 
-1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.4.0-universal.dmg`。
+1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.4.1-universal.dmg`。
 2. 打开 DMG，将 **QuotaNest.app** 拖到 **Applications**。
 3. 推出磁盘映像，从“应用程序”打开 QuotaNest。
 4. 在菜单栏找到带平台图标的百分比胶囊，完成下面的账号登录后等待刷新。
@@ -39,7 +39,7 @@ QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude 
 下载后可对照 Release 中的 `SHA256SUMS.txt` 检查文件完整性：
 
 ```sh
-shasum -a 256 ~/Downloads/QuotaNest-1.4.0-universal.dmg
+shasum -a 256 ~/Downloads/QuotaNest-1.4.1-universal.dmg
 ```
 
 ## 从 CodexQuota 升级
@@ -75,7 +75,7 @@ OpenAI 标志、Claude Code 像素机器人和 Antigravity 标志替代字母缩
 
 点击胶囊后，可切换平台、查看分组额度、重置时间、刷新状态，或点击 **立即刷新**。时间按系统当前时区显示。应用启动、电脑唤醒时也会刷新；常规刷新间隔为 180 秒，系统调度和网络可能造成延迟。
 
-**百分比怎么计算？** Codex 使用主额度桶中各有效窗口的最低剩余值；Claude 和 Antigravity 使用各有效额度组的最低剩余值。它表示最紧张的限制，不是所有模型额度的平均值。详情中保留独立窗口；某个模型组耗尽时，其他组仍可能可用。
+**百分比怎么计算？** Codex 使用主额度桶中各有效窗口的最低剩余值；Claude 使用各有效额度组的最低剩余值；Antigravity 默认仅显示 **Gemini** 分组内有效窗口的最低剩余值，其他模型仍在详情中展示。未获取到 Gemini 额度时显示 `—`，不会改用其他模型额度。它表示最紧张的限制，不是所有模型额度的平均值。详情中保留独立窗口；某个模型组耗尽时，其他组仍可能可用。
 
 ## 隐私与数据
 

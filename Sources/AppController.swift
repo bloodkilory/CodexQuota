@@ -128,7 +128,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         let value = remaining.map { String(format: "%.0f%%", floor($0)) + (errorMessage == nil ? "" : "!") } ?? (refreshing ? "···" : "—")
         capsule.provider = selectedProvider
         capsule.text = value
-        let title = "\(selectedProvider.title) 剩余额度 \(value)" + (errorMessage == nil ? "" : "，查询失败或数据过期")
+        let title = "\(selectedProvider.title)\(selectedProvider == .antigravity ? " Gemini" : "") 剩余额度 \(value)" + (errorMessage == nil ? "" : "，查询失败或数据过期")
         capsule.setAccessibilityLabel(title); capsule.toolTip = title
         if popover.isShown { buildPopover() }
     }
@@ -156,7 +156,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         stack.addArrangedSubview(label(selectedProvider.title, size: 16, bold: true))
         if let selected = snapshot?.selected {
             let source = selectedProvider == .codex ? (selected.1.planType ?? "Codex 登录账号") : selectedProvider == .claude ? "本机 Claude 官方登录" : "本机 Antigravity CLI 登录"
-            stack.addArrangedSubview(label(source + " · 显示最低余量", color: .secondaryLabelColor))
+            stack.addArrangedSubview(label(source + (selectedProvider == .antigravity ? " · 胶囊显示 Gemini 余量" : " · 显示最低余量"), color: .secondaryLabelColor))
         }
         if let errorMessage { stack.addArrangedSubview(label("⚠ \(errorMessage)" + (snapshot == nil ? "" : "\n当前百分比为上次成功查询结果。"), color: .systemOrange)) }
         if let snapshot {

@@ -11,6 +11,12 @@ struct ProviderReading {
     var successes = 0
     func remaining(for provider: QuotaProviderID) -> Double? {
         if provider == .codex { return snapshot?.remaining }
+        if provider == .antigravity {
+            // Never substitute another model family's quota when Gemini is unavailable.
+            return snapshot?.buckets.filter {
+                $0.limitName?.range(of: #"\bgemini\b"#, options: [.regularExpression, .caseInsensitive]) != nil
+            }.compactMap { $0.remaining }.min()
+        }
         return snapshot?.buckets.compactMap { $0.remaining }.min()
     }
 }
