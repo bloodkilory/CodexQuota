@@ -24,3 +24,13 @@ expect(ProviderReading(snapshot: mixed).remaining(for: .antigravity) == 40, "Gem
 let noGemini = QuotaSnapshot(rateLimits: nil, rateLimitsByLimitId: ["other": group("Claude and GPT models", 20)])
 expect(ProviderReading(snapshot: noGemini).remaining(for: .antigravity) == nil, "Missing Gemini is unknown instead of another model quota")
 expect(ProviderReading(snapshot: mixed).remaining(for: .claude) == 0, "Claude selection retains existing aggregation")
+
+let split = ProviderReading(snapshot: mixed)
+expect(split.window(for: .antigravity, period: .short)?.remaining == 40, "Short selection uses Gemini hours only")
+expect(split.window(for: .antigravity, period: .weekly)?.remaining == 70, "Weekly selection excludes hour limits and other families")
+expect(split.periodLabel(for: .antigravity, period: .short) == "5h", "Period label follows actual window duration")
+expect(split.periods(for: .antigravity) == [.short, .weekly], "Two valid periods support switching")
+let weeklyOnly = ProviderReading(snapshot: agy)
+expect(weeklyOnly.period(for: .antigravity, preferred: .short) == .weekly, "Disabled hours fall back to available weekly period")
+expect(weeklyOnly.periods(for: .antigravity) == [.weekly], "Disabled hour window is not switchable")
+expect(ProviderReading(snapshot: noGemini).periods(for: .antigravity).isEmpty, "Other families cannot provide Gemini switch periods")

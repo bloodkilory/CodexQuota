@@ -28,9 +28,9 @@ Codex and Antigravity are discovered in `~/.local/bin`, `/opt/homebrew/bin`, and
 
 ## Use
 
-Select a provider in the popover: **Codex**, **Claude Code**, or **Antigravity**. The capsule reports the lowest remaining value among the selected provider’s applicable windows (Codex uses its main bucket; Antigravity uses Gemini groups only). If Gemini quota is unavailable, Antigravity shows `—` rather than substituting another model. All model groups remain available in the popover. It is not an average across models. Reset times use your system time zone.
+Select a provider in the popover: **Codex**, **Claude Code**, or **Antigravity**. The capsule reports the lowest remaining value among the selected period’s applicable windows (Codex uses its main bucket; Antigravity uses Gemini groups only). If Gemini quota is unavailable, Antigravity shows `—` rather than substituting another model. All model groups remain available in the popover. It is not an average across models. Reset times use your system time zone.
 
-Green means ≥20%, orange 10–20%, red <10%. `!` means refresh failed and the value is stale; `—` means no valid data yet. The app also refreshes on launch and wake. Choose **登录时启动** to launch at login, **立即刷新** to refresh, and **退出** to quit. After moving the installed app, toggle launch at login off and on to update its path.
+Provider accents are teal for Codex, terracotta for Claude and blue for Antigravity. `!` means refresh failed and the value is stale; `—` means no valid data yet. The app also refreshes on launch and wake. Choose **登录时启动** to launch at login, **立即刷新** to refresh, and **退出** to quit. After moving the installed app, toggle launch at login off and on to update its path.
 
 ## Privacy and limitations
 
@@ -56,3 +56,5 @@ Issues and pull requests are welcome. Include OS/app/CLI versions and redacted r
 [MIT License](LICENSE). Original app icon generated with AI assistance; third-party trademarks belong to their owners.
 
 The compact capsule uses provider marks instead of letter abbreviations. Its colored width tracks the remaining percentage; the depleted portion is black. A failed refresh preserves the last known fraction in gray with `!`. Updates follow real quota readings every 180 seconds.
+
+The 64-point capsule has a narrow period button after a vertical separator. Click `5h` / `1w` to switch cached hour/week quota instantly. Each provider remembers its selection; hours are preferred initially. With only one valid period the switch is disabled. Click the left portion for details. The progress fill applies only to the left portion; the period button stays black.

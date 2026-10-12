@@ -1,7 +1,7 @@
 import AppKit
 final class AppController: NSObject, NSApplicationDelegate {
     private var status: NSStatusItem!
-    private let capsule = CapsuleView(frame: NSRect(x: 0, y: 0, width: 68, height: 24))
+    private let capsule = CapsuleView(frame: NSRect(x: 0, y: 0, width: 64, height: 24))
     private let popover = NSPopover()
     private let client = CodexClient()
     private var timer: Timer?
@@ -9,6 +9,16 @@ final class AppController: NSObject, NSApplicationDelegate {
     private let antigravityClient = AntigravityQuotaClient()
     private var readings = Dictionary(uniqueKeysWithValues: QuotaProviderID.allCases.map { ($0, ProviderReading()) })
     private var selectedProvider = QuotaProviderID(rawValue: UserDefaults.standard.string(forKey: "selectedProvider") ?? "") ?? .codex
+    private func preferredPeriod(for provider: QuotaProviderID) -> QuotaPeriod {
+        QuotaPeriod(rawValue: UserDefaults.standard.string(forKey: "quotaPeriod." + provider.rawValue) ?? "") ?? .short
+    }
+    private var displayedPeriod: QuotaPeriod? { reading.period(for: selectedProvider, preferred: preferredPeriod(for: selectedProvider)) }
+    private func switchPeriod() {
+        let periods = reading.periods(for: selectedProvider)
+        guard periods.count > 1, let current = displayedPeriod, let index = periods.firstIndex(of: current) else { return }
+        UserDefaults.standard.set(periods[(index + 1) % periods.count].rawValue, forKey: "quotaPeriod." + selectedProvider.rawValue)
+        render(); writeDiagnostics()
+    }
     private var reading: ProviderReading { readings[selectedProvider]! }
     private var snapshot: QuotaSnapshot? { reading.snapshot }
     private var lastSuccess: Date? { reading.lastSuccess }
@@ -31,12 +41,13 @@ final class AppController: NSObject, NSApplicationDelegate {
            !Bundle.main.bundlePath.hasPrefix("/Volumes/") {
             try? LoginItemManager.setEnabled(true)
         }
-        status = NSStatusBar.system.statusItem(withLength: 68)
+        status = NSStatusBar.system.statusItem(withLength: 64)
         if let button = status.button {
             capsule.frame = button.bounds; capsule.autoresizingMask = [.width, .height]
             button.addSubview(capsule)
         }
         capsule.action = { [weak self] in self?.togglePopover() }
+        capsule.periodAction = { [weak self] in self?.switchPeriod() }
         popover.behavior = .transient
         popover.animates = true
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in self?.refresh() }
@@ -114,7 +125,9 @@ final class AppController: NSObject, NSApplicationDelegate {
         for provider in QuotaProviderID.allCases {
             let entry = readings[provider]!
             var value: [String: Any] = ["successfulRefreshes": entry.successes, "refreshing": entry.refreshing]
-            if let remaining = entry.remaining(for: provider) { value["remaining"] = remaining }
+            let period = entry.period(for: provider, preferred: preferredPeriod(for: provider))
+            value["period"] = period?.rawValue ?? "unknown"
+            if let remaining = entry.window(for: provider, period: period)?.remaining { value["remaining"] = remaining }
             if let date = entry.lastSuccess { value["lastSuccess"] = ISO8601DateFormatter().string(from: date) }
             if let error = entry.error { value["error"] = error }
             providers[provider.rawValue] = value
@@ -123,13 +136,20 @@ final class AppController: NSObject, NSApplicationDelegate {
         if let data = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: stateDirectory.appendingPathComponent("status.json"), options: .atomic) }
     }
     private func render() {
-        let remaining = reading.remaining(for: selectedProvider)
+        let period = displayedPeriod
+        let remaining = reading.window(for: selectedProvider, period: period)?.remaining
+        capsule.periodText = reading.periodLabel(for: selectedProvider, period: period)
+        capsule.canSwitchPeriod = reading.periods(for: selectedProvider).count > 1
         capsule.remaining = remaining; capsule.stale = errorMessage != nil
         let value = remaining.map { String(format: "%.0f%%", floor($0)) + (errorMessage == nil ? "" : "!") } ?? (refreshing ? "···" : "—")
         capsule.provider = selectedProvider
         capsule.text = value
-        let title = "\(selectedProvider.title)\(selectedProvider == .antigravity ? " Gemini" : "") 剩余额度 \(value)" + (errorMessage == nil ? "" : "，查询失败或数据过期")
-        capsule.setAccessibilityLabel(title); capsule.toolTip = title
+        let title = "\(selectedProvider.title)\(selectedProvider == .antigravity ? " Gemini" : "") \(capsule.periodText) 剩余额度 \(value)" + (errorMessage == nil ? "" : "，查询失败或数据过期")
+        capsule.detailButton.setAccessibilityLabel(title + "，打开详情")
+        capsule.detailButton.toolTip = title
+        let periodHelp = "当前 " + capsule.periodText + (capsule.canSwitchPeriod ? "，点击切换小时 / 周额度" : "，暂无其他有效周期")
+        capsule.periodButton.setAccessibilityLabel(periodHelp)
+        capsule.periodButton.toolTip = periodHelp
         if popover.isShown { buildPopover() }
     }
     private func togglePopover() {
@@ -156,7 +176,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         stack.addArrangedSubview(label(selectedProvider.title, size: 16, bold: true))
         if let selected = snapshot?.selected {
             let source = selectedProvider == .codex ? (selected.1.planType ?? "Codex 登录账号") : selectedProvider == .claude ? "本机 Claude 官方登录" : "本机 Antigravity CLI 登录"
-            stack.addArrangedSubview(label(source + (selectedProvider == .antigravity ? " · 胶囊显示 Gemini 余量" : " · 显示最低余量"), color: .secondaryLabelColor))
+            stack.addArrangedSubview(label(source + " · 胶囊：" + (selectedProvider == .antigravity ? "Gemini " : "") + reading.periodLabel(for: selectedProvider, period: displayedPeriod), color: .secondaryLabelColor))
         }
         if let errorMessage { stack.addArrangedSubview(label("⚠ \(errorMessage)" + (snapshot == nil ? "" : "\n当前百分比为上次成功查询结果。"), color: .systemOrange)) }
         if let snapshot {
