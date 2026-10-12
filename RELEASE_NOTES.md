@@ -1,11 +1,11 @@
-# CodexQuota 1.2.0
+# 余度 QuotaNest 1.3.0
 
-First public distribution: native macOS menu bar quotas for Codex, Claude Code, and Antigravity.
+CodexQuota is now **QuotaNest · 余度**, reflecting support for multiple AI providers.
 
-- Universal DMG for Intel and Apple Silicon; macOS 13+.
-- Original Q gauge app icon, Chinese and English documentation.
-- Remaining percentages, reset times, 3-minute refresh, optional launch at login.
+- New flat, muted three-bar quota icon.
+- Updated app name, Chinese/English homepage, and universal DMG.
+- Existing provider preference and login startup setting are preserved.
 
-Drag the app into Applications and sign in through your provider's official CLI. CLIs are installed separately. The app UI is Chinese.
+**Upgrade:** Quit CodexQuota, drag QuotaNest to Applications, open it, then remove the old app. Enabled login entries update on launch. Internal data identifiers remain unchanged for compatibility.
 
-**This community build is ad-hoc signed, not Apple-notarized.** See README for first-launch instructions and current compatibility limitations. Verify your download against SHA256SUMS.txt.
+macOS 13+, Intel and Apple Silicon. Official provider CLIs are separate prerequisites. This community build is ad-hoc signed and not Apple-notarized. See README for first-launch instructions. Verify downloads against SHA256SUMS.txt.

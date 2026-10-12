@@ -51,6 +51,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         if !CommandLine.arguments.contains("--preview") {
             guard let lockHandle, flock(lockHandle.fileDescriptor, LOCK_EX | LOCK_NB) == 0 else { NSApp.terminate(nil); return }
         }
+        // Keep the existing login preference while updating its executable path after a rename/move.
+        if !CommandLine.arguments.contains("--preview"), LoginItemManager.enabled,
+           !Bundle.main.bundlePath.hasPrefix("/Volumes/") {
+            try? LoginItemManager.setEnabled(true)
+        }
         status = NSStatusBar.system.statusItem(withLength: 88)
         if let button = status.button {
             capsule.frame = button.bounds; capsule.autoresizingMask = [.width, .height]
@@ -167,7 +172,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func buildPopover() {
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 9
         stack.edgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
-        stack.addArrangedSubview(label("AI 套餐额度", size: 18, bold: true))
+        stack.addArrangedSubview(label("余度 QuotaNest", size: 18, bold: true))
         let picker = NSSegmentedControl(labels: ["Codex", "Claude", "Antigravity"], trackingMode: .selectOne, target: self, action: #selector(selectProvider(_:)))
         picker.selectedSegment = QuotaProviderID.allCases.firstIndex(of: selectedProvider)!
         picker.widthAnchor.constraint(equalToConstant: 322).isActive = true
@@ -206,7 +211,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
         let login = NSButton(checkboxWithTitle: "登录时启动", target: self, action: #selector(toggleLogin(_:))); login.state = LoginItemManager.enabled ? .on : .off
         stack.addArrangedSubview(login)
-        stack.addArrangedSubview(NSButton(title: "退出 CodexQuota", target: self, action: #selector(quit)))
+        stack.addArrangedSubview(NSButton(title: "退出余度 QuotaNest", target: self, action: #selector(quit)))
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.widthAnchor.constraint(equalToConstant: 358).isActive = true
         stack.layoutSubtreeIfNeeded()

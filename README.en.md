@@ -1,14 +1,18 @@
-<p align="center"><img src="assets/logo.png" width="120" alt="CodexQuota"></p>
-<h1 align="center">CodexQuota</h1>
+<p align="center"><img src="assets/logo.png" width="120" alt="QuotaNest"></p>
+<h1 align="center">QuotaNest · 余度</h1>
 <p align="center">AI subscription quotas, right in your Mac menu bar.<br><a href="README.md">中文文档</a></p>
 
 A native Swift/AppKit menu bar utility for **Codex, Claude Code, and Google Antigravity**. A small capsule shows your remaining quota and refreshes every three minutes. Click it for individual limits and reset times. The current app interface is Chinese.
 
 ## Install
 
-Requires macOS 13+. Download the universal DMG from this repository’s **[Releases](https://github.com/bloodkilory/CodexQuota/releases/latest)**, drag the app into **Applications**, eject the image, then open the installed app. Intel and Apple Silicon binaries are included. Provider CLIs are separate prerequisites.
+Requires macOS 13+. Download the universal DMG from this repository’s **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)**, drag the app into **Applications**, eject the image, then open the installed app. Intel and Apple Silicon binaries are included. Provider CLIs are separate prerequisites.
 
 The current community build is ad-hoc signed and **not Apple-notarized**. If blocked after first launch, allow this app in **System Settings → Privacy & Security → Open Anyway**. Do not disable Gatekeeper globally. Managed Macs may disallow this.
+
+## Upgrade from CodexQuota
+
+Quit CodexQuota, install and open QuotaNest, then move the old app to Trash. Provider selection and launch-at-login preference are retained; enabled login entries update to the new executable path on launch. The internal `local.codexquota` identifier and `Application Support/CodexQuota` directory remain for compatibility.
 
 ## Connect
 

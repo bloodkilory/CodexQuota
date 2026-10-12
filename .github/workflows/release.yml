@@ -19,13 +19,13 @@ jobs:
         run: ./scripts/package-dmg.sh
       - uses: actions/upload-artifact@v4
         with:
-          name: CodexQuota-universal
+          name: QuotaNest-universal
           path: dist/*
       - name: Publish tag release
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' .build/CodexQuota.app/Contents/Info.plist)
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' .build/QuotaNest.app/Contents/Info.plist)
           test "$GITHUB_REF_NAME" = "v$VERSION"
-          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "CodexQuota $VERSION" --notes-file RELEASE_NOTES.md
+          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "QuotaNest $VERSION" --notes-file RELEASE_NOTES.md

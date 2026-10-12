@@ -1,6 +1,6 @@
-<p align="center"><img src="assets/logo.png" width="136" alt="CodexQuota icon"></p>
-<h1 align="center">CodexQuota</h1>
-<p align="center"><b>抬眼看余量，安心写代码。</b><br>AI subscription quotas, right in your Mac menu bar.</p>
+<p align="center"><img src="assets/logo.png" width="136" alt="QuotaNest icon"></p>
+<h1 align="center">余度 QuotaNest</h1>
+<p align="center"><b>所有 AI 余量，一眼有数。</b><br>AI subscription quotas, right in your Mac menu bar.</p>
 <p align="center">
 <img src="https://img.shields.io/badge/macOS-13%2B-111827?logo=apple&logoColor=white" alt="macOS 13+">
 <img src="https://img.shields.io/badge/Universal-Intel%20%2B%20Apple%20Silicon-06b6d4" alt="Universal binary">
@@ -11,7 +11,7 @@
 
 ---
 
-CodexQuota 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude Code 和 Google Antigravity** 的套餐余量放进一颗小胶囊。每 3 分钟刷新，点击即可查看各额度窗口和重置时间。
+QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude Code 和 Google Antigravity** 的套餐余量放进一颗小胶囊。每 3 分钟刷新，点击即可查看各额度窗口和重置时间。
 
 - **一眼知道还能用多少**：显示剩余百分比，用颜色提醒低额度。
 - **三个平台，一个入口**：切换平台，独立查询，记住上次选择。
@@ -24,9 +24,9 @@ CodexQuota 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude
 
 **系统要求：macOS 13 或更新版本。** DMG 内含 Intel / Apple Silicon 通用应用；对应平台的官方 CLI 需要另外安装并登录。
 
-1. 在本仓库 **[Releases](https://github.com/bloodkilory/CodexQuota/releases/latest)** 页面下载 `CodexQuota-1.2.0-universal.dmg`。
-2. 打开 DMG，将 **CodexQuota.app** 拖到 **Applications**。
-3. 推出磁盘映像，从“应用程序”打开 CodexQuota。
+1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.3.0-universal.dmg`。
+2. 打开 DMG，将 **QuotaNest.app** 拖到 **Applications**。
+3. 推出磁盘映像，从“应用程序”打开 QuotaNest。
 4. 在菜单栏找到 `CX —` 胶囊，完成下面的账号登录后等待刷新。
 5. 需要开机自启时，点击胶囊并勾选 **登录时启动**。
 
@@ -35,8 +35,12 @@ CodexQuota 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude
 下载后可对照 Release 中的 `SHA256SUMS.txt` 检查文件完整性：
 
 ```sh
-shasum -a 256 ~/Downloads/CodexQuota-1.2.0-universal.dmg
+shasum -a 256 ~/Downloads/QuotaNest-1.3.0-universal.dmg
 ```
+
+## 从 CodexQuota 升级
+
+先退出旧应用，再安装并打开 QuotaNest，最后将旧的 CodexQuota.app 移到废纸篓。原有平台选择和登录自启动开关会保留；已开启的登录项将在启动新版时更新路径。为兼容旧版，内部标识 `local.codexquota` 和诊断目录 `Application Support/CodexQuota` 保持不变。
 
 ## 连接账号
 
@@ -97,7 +101,7 @@ shasum -a 256 ~/Downloads/CodexQuota-1.2.0-universal.dmg
 源码安装脚本首次安装默认开启登录自启；DMG 安装通过面板手动开启。已有安装保留开关状态。设置 `SIGNING_IDENTITY` 可使用本机 Developer ID 证书签名；公证需要维护者另行通过 Apple notarytool 完成。未公证构建不能宣称通过 Apple 安全审核。
 
 ```sh
-/Applications/CodexQuota.app/Contents/MacOS/CodexQuota --check-all
+/Applications/QuotaNest.app/Contents/MacOS/QuotaNest --check-all
 ```
 
 Apple Silicon 产物为交叉编译版本；当前本地运行验证在 Intel Mac 上完成。macOS 13 为构建最低部署版本，尚未完成所有系统版本的实机测试。
