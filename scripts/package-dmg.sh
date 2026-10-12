@@ -11,7 +11,7 @@ cat > "$STAGE/安装说明 - Read me.txt" <<'TXT'
 QuotaNest — AI quota, at a glance.
 
 1. Drag QuotaNest.app to Applications. Eject this disk image.
-2. Open the installed app. Look for the CX capsule in the menu bar.
+2. Open the installed app. Look for the provider-icon quota capsule in the menu bar.
 3. Sign in with your provider's official CLI. See the project README.
 4. Enable “登录时启动” in the app to launch at login.
 

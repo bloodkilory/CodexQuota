@@ -1,29 +1,4 @@
 import AppKit
-final class CapsuleView: NSView {
-    var text = "—" { didSet { needsDisplay = true } }
-    var remaining: Double? { didSet { needsDisplay = true } }
-    var stale = false { didSet { needsDisplay = true } }
-    var action: (() -> Void)?
-    override init(frame: NSRect) {
-        super.init(frame: frame)
-        setAccessibilityElement(true); setAccessibilityRole(.button)
-    }
-    required init?(coder: NSCoder) { fatalError() }
-    override func mouseDown(with event: NSEvent) { action?() }
-    override func accessibilityPerformPress() -> Bool { action?(); return true }
-    override func draw(_ dirtyRect: NSRect) {
-        let rect = bounds.insetBy(dx: 3, dy: 3)
-        let color: NSColor = stale || remaining == nil ? .secondaryLabelColor : (remaining! < 10 ? .systemRed : remaining! < 20 ? .systemOrange : .systemGreen)
-        color.withAlphaComponent(0.19).setFill()
-        NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2).fill()
-        color.withAlphaComponent(0.7).setStroke()
-        let outline = NSBezierPath(roundedRect: rect.insetBy(dx: 0.5, dy: 0.5), xRadius: rect.height / 2, yRadius: rect.height / 2)
-        outline.lineWidth = 0.7; outline.stroke()
-        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold), .foregroundColor: NSColor.labelColor]
-        let label = text as NSString, size = label.size(withAttributes: attrs)
-        label.draw(at: NSPoint(x: (bounds.width-size.width)/2, y: (bounds.height-size.height)/2), withAttributes: attrs)
-    }
-}
 final class AppController: NSObject, NSApplicationDelegate {
     private var status: NSStatusItem!
     private let capsule = CapsuleView(frame: NSRect(x: 0, y: 0, width: 68, height: 24))
@@ -56,7 +31,7 @@ final class AppController: NSObject, NSApplicationDelegate {
            !Bundle.main.bundlePath.hasPrefix("/Volumes/") {
             try? LoginItemManager.setEnabled(true)
         }
-        status = NSStatusBar.system.statusItem(withLength: 88)
+        status = NSStatusBar.system.statusItem(withLength: 68)
         if let button = status.button {
             capsule.frame = button.bounds; capsule.autoresizingMask = [.width, .height]
             button.addSubview(capsule)
@@ -151,7 +126,8 @@ final class AppController: NSObject, NSApplicationDelegate {
         let remaining = reading.remaining(for: selectedProvider)
         capsule.remaining = remaining; capsule.stale = errorMessage != nil
         let value = remaining.map { String(format: "%.0f%%", floor($0)) + (errorMessage == nil ? "" : "!") } ?? (refreshing ? "···" : "—")
-        capsule.text = selectedProvider.shortTitle + " " + value
+        capsule.provider = selectedProvider
+        capsule.text = value
         let title = "\(selectedProvider.title) 剩余额度 \(value)" + (errorMessage == nil ? "" : "，查询失败或数据过期")
         capsule.setAccessibilityLabel(title); capsule.toolTip = title
         if popover.isShown { buildPopover() }

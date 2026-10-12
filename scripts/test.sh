@@ -10,3 +10,6 @@ swiftc Sources/QuotaModels.swift Sources/ProviderPayload.swift Tests/Providers/m
 .build/provider-tests
 swiftc -swift-version 5 Sources/QuotaModels.swift Sources/CodexClient.swift Sources/BoundedCommand.swift Tests/Command/main.swift -o .build/command-tests
 .build/command-tests
+
+swiftc Sources/QuotaModels.swift Sources/ProviderState.swift Sources/ProviderMark.swift Sources/CapsuleView.swift Tests/Capsule/main.swift -o .build/capsule-tests
+.build/capsule-tests

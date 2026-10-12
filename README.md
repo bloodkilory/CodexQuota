@@ -13,7 +13,7 @@
 
 QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude Code 和 Google Antigravity** 的套餐余量放进一颗小胶囊。每 3 分钟刷新，点击即可查看各额度窗口和重置时间。
 
-- **一眼知道还能用多少**：显示剩余百分比，用颜色提醒低额度。
+- **一眼知道还能用多少**：显示剩余百分比，彩色背景宽度随剩余比例变化，已用部分为黑色。
 - **三个平台，一个入口**：切换平台，独立查询，记住上次选择。
 - **沿用官方登录**：通过本机官方 CLI 或订阅 OAuth 查询，不需要把密钥粘贴给本应用。
 - **原生且克制**：Swift + AppKit，无 Electron，无内置分析追踪，无模型对话请求。
@@ -24,10 +24,10 @@ QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude 
 
 **系统要求：macOS 13 或更新版本。** DMG 内含 Intel / Apple Silicon 通用应用；对应平台的官方 CLI 需要另外安装并登录。
 
-1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.3.1-universal.dmg`。
+1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.4.0-universal.dmg`。
 2. 打开 DMG，将 **QuotaNest.app** 拖到 **Applications**。
 3. 推出磁盘映像，从“应用程序”打开 QuotaNest。
-4. 在菜单栏找到 `CX —` 胶囊，完成下面的账号登录后等待刷新。
+4. 在菜单栏找到 带平台图标的百分比胶囊，完成下面的账号登录后等待刷新。
 5. 需要开机自启时，点击胶囊并勾选 **登录时启动**。
 
 **首次打开提示无法验证开发者？** 当前社区构建使用 ad-hoc 签名，尚未经过 Apple Developer ID 签名及公证。尝试打开后，在 **系统设置 → 隐私与安全性 → 仍要打开** 中单独允许此应用。无需关闭 Gatekeeper。受管理的工作电脑可能不允许此操作。
@@ -35,7 +35,7 @@ QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude 
 下载后可对照 Release 中的 `SHA256SUMS.txt` 检查文件完整性：
 
 ```sh
-shasum -a 256 ~/Downloads/QuotaNest-1.3.1-universal.dmg
+shasum -a 256 ~/Downloads/QuotaNest-1.4.0-universal.dmg
 ```
 
 ## 从 CodexQuota 升级
@@ -58,9 +58,15 @@ shasum -a 256 ~/Downloads/QuotaNest-1.3.1-universal.dmg
 
 ## 使用
 
+![菜单栏图标和余量填充示例（放大 3 倍，示例数据）](assets/capsule-preview.png)
+
+OpenAI 标志、Claude Code 像素机器人和 Antigravity 标志替代字母缩写；悬停可查看完整平台名称。
+
 | 胶囊状态 | 含义 |
 | --- | --- |
-| `CX 82%` / `CL 64%` / `AG 28%` | 当前所选平台的剩余百分比（示例值） |
+| 平台图标 + `82%` | 当前所选平台的剩余百分比（示例值） |
+| 彩色填充 / 黑色背景 | 剩余 / 已用比例；每次查询后同步更新 |
+| 灰色填充 | 刷新失败时保留上次比例，并显示 `!` |
 | 绿色 / 橙色 / 红色 | 余量 ≥ 20% / 10%–20% / < 10% |
 | `!` | 本次刷新失败，显示的是上次成功的数据 |
 | `—` | 尚未获取到有效额度 |
