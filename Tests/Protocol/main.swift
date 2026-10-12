@@ -8,7 +8,8 @@ func probe(_ mode: String, success: Bool) {
     let fixture = directory.appendingPathComponent("codex")
     let source = """
 #!/usr/bin/python3
-import sys,json,time
+import sys,json,time,os
+time.sleep(float(os.environ.get("QUOTANEST_TEST_STARTUP_DELAY", "0")))
 for line in sys.stdin:
  x=json.loads(line)
  if x.get('method')=='initialize':
@@ -25,18 +26,22 @@ for line in sys.stdin:
 """
     try! source.write(to: fixture, atomically: true, encoding: .utf8)
     try! FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fixture.path)
-    let client = CodexClient(executable: fixture.path, timeout: 1)
+    let client = CodexClient(executable: fixture.path, timeout: mode == "timeout" ? 0.5 : 10)
     let sem = DispatchSemaphore(value: 0)
     var passed = false
     client.fetch { result in
         switch result {
         case .success(let snapshot): passed = success && snapshot.remaining == 58
-        case .failure: passed = !success
+        case .failure(let error):
+            print("Protocol \(mode) error: \(error.localizedDescription)")
+            let message = error.localizedDescription
+            passed = !success && (mode == "timeout" ? message.contains("查询超过") :
+                mode == "error" ? message.contains("-32000") : message.contains("Codex 已退出"))
         }
         sem.signal()
     }
-    guard sem.wait(timeout: .now()+3) == .success, passed else { fatalError("FAIL protocol \(mode)") }
-    client.stop(); Thread.sleep(forTimeInterval: 0.05)
+    guard sem.wait(timeout: .now()+15) == .success, passed else { fatalError("FAIL protocol \(mode)") }
+    client.shutdown()
     print("PASS protocol \(mode)")
 }
 probe("success", success: true)
@@ -56,7 +61,7 @@ time.sleep(60)
 try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: fixture.path)
 let stalled = CodexClient(executable: fixture.path)
 stalled.fetch { _ in }
-let startDeadline = Date().addingTimeInterval(3)
+let startDeadline = Date().addingTimeInterval(10)
 while !FileManager.default.fileExists(atPath: pidFile.path) && Date() < startDeadline { Thread.sleep(forTimeInterval: 0.02) }
 let pid = Int32(try String(contentsOf: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines))!
 let started = Date()

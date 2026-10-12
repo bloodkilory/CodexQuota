@@ -1,4 +1,4 @@
-# 余度 QuotaNest 1.3.0
+# 余度 QuotaNest 1.3.1
 
 CodexQuota is now **QuotaNest · 余度**, reflecting support for multiple AI providers.
 

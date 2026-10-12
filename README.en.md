@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo.png" width="120" alt="QuotaNest"></p>
+<p align="center"><img src="assets/quotanest.png" width="120" alt="QuotaNest"></p>
 <h1 align="center">QuotaNest · 余度</h1>
 <p align="center">AI subscription quotas, right in your Mac menu bar.<br><a href="README.md">中文文档</a></p>
 

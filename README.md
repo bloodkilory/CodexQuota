@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo.png" width="136" alt="QuotaNest icon"></p>
+<p align="center"><img src="assets/quotanest.png" width="136" alt="QuotaNest icon"></p>
 <h1 align="center">余度 QuotaNest</h1>
 <p align="center"><b>所有 AI 余量，一眼有数。</b><br>AI subscription quotas, right in your Mac menu bar.</p>
 <p align="center">
@@ -24,7 +24,7 @@ QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude 
 
 **系统要求：macOS 13 或更新版本。** DMG 内含 Intel / Apple Silicon 通用应用；对应平台的官方 CLI 需要另外安装并登录。
 
-1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.3.0-universal.dmg`。
+1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.3.1-universal.dmg`。
 2. 打开 DMG，将 **QuotaNest.app** 拖到 **Applications**。
 3. 推出磁盘映像，从“应用程序”打开 QuotaNest。
 4. 在菜单栏找到 `CX —` 胶囊，完成下面的账号登录后等待刷新。
@@ -35,7 +35,7 @@ QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude 
 下载后可对照 Release 中的 `SHA256SUMS.txt` 检查文件完整性：
 
 ```sh
-shasum -a 256 ~/Downloads/QuotaNest-1.3.0-universal.dmg
+shasum -a 256 ~/Downloads/QuotaNest-1.3.1-universal.dmg
 ```
 
 ## 从 CodexQuota 升级

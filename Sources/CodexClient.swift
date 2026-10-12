@@ -37,7 +37,7 @@ final class CodexClient {
                     p.environment = env
                     try p.run()
                     self.process = p; self.input = stdin.fileHandleForWriting; self.output = stdout.fileHandleForReading
-                    _ = try self.request("initialize", params: ["clientInfo": ["name": "codex_quota", "title": "QuotaNest", "version": "1.3.0"]], deadline: deadline)
+                    _ = try self.request("initialize", params: ["clientInfo": ["name": "codex_quota", "title": "QuotaNest", "version": "1.3.1"]], deadline: deadline)
                     try self.send(["method": "initialized"])
                 }
                 let value = try self.request("account/rateLimits/read", params: nil, deadline: deadline)
