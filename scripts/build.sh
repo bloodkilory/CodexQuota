@@ -10,6 +10,8 @@ done
 lipo -create .build/bin/QuotaNest-arm64 .build/bin/QuotaNest-x86_64 -output "$APP/Contents/MacOS/QuotaNest"
 cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp assets/PROVIDER-MARKS.md "$APP/Contents/Resources/PROVIDER-MARKS.md"
+cp Helpers/qoder-usage.cjs "$APP/Contents/Resources/qoder-usage.cjs"
+cp -R assets/provider-marks "$APP/Contents/Resources/"
 cp LICENSE "$APP/Contents/Resources/LICENSE"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -21,8 +23,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>QuotaNest</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.5.0</string>
-<key>CFBundleVersion</key><string>8</string>
+<key>CFBundleShortVersionString</key><string>1.6.0</string>
+<key>CFBundleVersion</key><string>9</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>

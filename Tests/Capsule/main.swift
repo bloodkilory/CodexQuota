@@ -28,20 +28,20 @@ assert(black(render(-10), 40) && !black(render(110), 40))
 assert(black(render(nil), 40) && black(render(.nan), 40))
 assert(!black(render(50, stale: true), 22) && black(render(50, stale: true), 28))
 print("PASS capsule: 0/50/75/100%, clamping, unknown, invalid and stale pixel coverage")
-let rep = bitmap(900, 440)
+let rep = bitmap(900, 965)
 NSGraphicsContext.saveGraphicsState()
 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
 NSColor(srgbRed: 0.94, green: 0.94, blue: 0.92, alpha: 1).setFill()
-CGRect(x: 0, y: 0, width: 900, height: 440).fill()
+CGRect(x: 0, y: 0, width: 900, height: 965).fill()
 func label(_ text: String, x: CGFloat, y: CGFloat, size: CGFloat, color: NSColor = .black) {
     (text as NSString).draw(at: CGPoint(x: x, y: y), withAttributes: [.font: NSFont.systemFont(ofSize: size, weight: .medium), .foregroundColor: color])
 }
-label("QuotaNest · Menu bar", x: 35, y: 388, size: 24)
-label("Actual rendering · 3× · sample quotas", x: 35, y: 362, size: 13, color: .darkGray)
+label("QuotaNest · Menu bar", x: 35, y: 913, size: 24)
+label("Actual rendering · 3× · sample quotas", x: 35, y: 887, size: 13, color: .darkGray)
 let amounts: [Double?] = [100, 50, 8, nil]
 for (row, provider) in QuotaProviderID.allCases.enumerated() {
-    let y = CGFloat(265 - row * 105)
-    label(provider.title, x: 35, y: y + 49, size: 13, color: .darkGray)
+    let y = CGFloat(790 - row * 105)
+    label(provider.title + (provider.experimental ? " · Experimental" : ""), x: 35, y: y + 49, size: 13, color: .darkGray)
     for (col, amount) in amounts.enumerated() {
         NSGraphicsContext.saveGraphicsState()
         let ctx = NSGraphicsContext.current!.cgContext
@@ -49,7 +49,7 @@ for (row, provider) in QuotaProviderID.allCases.enumerated() {
         ctx.scaleBy(x: 3, y: 3)
         let view = CapsuleView(frame: NSRect(x: 0, y: 0, width: 64, height: 24))
         view.provider = provider; view.remaining = amount
-        view.periodText = col % 2 == 0 ? "5h" : "1w"; view.canSwitchPeriod = amount != nil
+        view.periodText = [.qoder, .codebuddy].contains(provider) ? "额" : (col % 2 == 0 ? "5h" : "1w"); view.canSwitchPeriod = amount != nil && ![.qoder, .codebuddy].contains(provider)
         view.text = amount.map { String(format: "%.0f%%", $0) } ?? "—"
         view.draw(view.bounds)
         NSGraphicsContext.restoreGraphicsState()

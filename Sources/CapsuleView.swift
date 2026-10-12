@@ -38,6 +38,11 @@ final class CapsuleView: NSView {
         switch provider {
         case .codex: return NSColor(srgbRed: 0.20, green: 0.44, blue: 0.39, alpha: 1)
         case .claude: return NSColor(srgbRed: 0.63, green: 0.34, blue: 0.24, alpha: 1)
+        case .kimi: return NSColor(srgbRed: 0.26, green: 0.36, blue: 0.69, alpha: 1)
+        case .zcode: return NSColor(srgbRed: 0.27, green: 0.39, blue: 0.61, alpha: 1)
+        case .minimax: return NSColor(srgbRed: 0.65, green: 0.31, blue: 0.39, alpha: 1)
+        case .qoder: return NSColor(srgbRed: 0.38, green: 0.31, blue: 0.63, alpha: 1)
+        case .codebuddy: return NSColor(srgbRed: 0.25, green: 0.43, blue: 0.63, alpha: 1)
         case .antigravity: return NSColor(srgbRed: 0.23, green: 0.39, blue: 0.65, alpha: 1)
         }
     }

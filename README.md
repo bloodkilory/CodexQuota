@@ -11,24 +11,24 @@
 
 ---
 
-QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude Code 和 Google Antigravity** 的套餐余量放进一颗小胶囊。每 3 分钟刷新，点击即可查看各额度窗口和重置时间。
+QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude Code 和 Google Antigravity** 的套餐余量放进一颗小胶囊，并新增 **5 个国内厂商平台的实验适配**。每 3 分钟刷新，点击即可查看各额度窗口和重置时间。
 
 ![菜单栏图标和余量填充示例（放大 3 倍，示例数据）](assets/capsule-preview.png)
 
 <p align="center"><sub>实际绘制效果，放大 3 倍 · 示例余量 · 彩色为剩余，黑色为已用</sub></p>
 
 - **一眼知道还能用多少**：显示剩余百分比，彩色背景宽度随剩余比例变化，已用部分为黑色。
-- **三个平台，一个入口**：切换平台，独立查询，记住上次选择。
+- **八个平台，一个入口**：切换平台，独立查询，记住上次选择。
 - **沿用官方登录**：通过本机官方 CLI 或订阅 OAuth 查询，不需要把密钥粘贴给本应用。
 - **原生且克制**：Swift + AppKit，无 Electron，无内置分析追踪，无模型对话请求。
 
-> 独立社区项目，与 OpenAI、Anthropic、Google 无隶属关系。界面目前为中文。仅支持官方账号套餐额度，不支持第三方 API 中转余额。
+> 独立社区项目，与各平台厂商无隶属关系。界面目前为中文。仅支持官方账号套餐额度，不支持第三方 API 中转余额。
 
 ## 安装
 
-**系统要求：macOS 13 或更新版本。** DMG 内含 Intel / Apple Silicon 通用应用；对应平台的官方 CLI 需要另外安装并登录。
+**系统要求：macOS 13 或更新版本。** DMG 内含 Intel / Apple Silicon 通用应用；对应平台支持的官方客户端需要另外安装并登录。
 
-1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.5.0-universal.dmg`。
+1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.6.0-universal.dmg`。
 2. 打开 DMG，将 **QuotaNest.app** 拖到 **Applications**。
 3. 推出磁盘映像，从“应用程序”打开 QuotaNest。
 4. 在菜单栏找到带平台图标的百分比胶囊，完成下面的账号登录后等待刷新。
@@ -39,7 +39,7 @@ QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude 
 下载后可对照 Release 中的 `SHA256SUMS.txt` 检查文件完整性：
 
 ```sh
-shasum -a 256 ~/Downloads/QuotaNest-1.5.0-universal.dmg
+shasum -a 256 ~/Downloads/QuotaNest-1.6.0-universal.dmg
 ```
 
 ## 从 CodexQuota 升级
@@ -53,6 +53,24 @@ shasum -a 256 ~/Downloads/QuotaNest-1.5.0-universal.dmg
 | Codex | 安装 [官方 Codex CLI](https://github.com/openai/codex)，运行 `codex login` 使用套餐账号登录 | 本机 app-server 的 `account/rateLimits/read` |
 | Claude Code | 安装 [官方 Claude Code](https://code.claude.com/docs/en/setup)，运行 `claude auth login` 登录订阅账号 | 读取默认订阅 OAuth 凭证，查询官方额度端点 |
 | Antigravity | 安装 [官方 CLI](https://antigravity.google/docs/cli)，版本 ≥ 1.1.11，并完成其官方登录流程 | `agy -p /usage --output-format json` |
+
+### 国内平台 · 实验性接入
+
+**以下五项仅完成官方代码/接口核对与模拟数据测试，尚未使用真实账号验证。** 它们是按接入可行性选出的首批平台，不是市场份额排名。应用内均标有“实验”，未登录时显示未知，不显示虚构余量。
+
+| 厂商 / 模型系列 | 接入的官方智能体 | 登录要求 | 额度展示 |
+| --- | --- | --- | --- |
+| 月之暗面 / Kimi | Kimi Code | 国内官方客户端登录缓存 | 5 小时、周、月度总额度与编程额度 |
+| 智谱 / GLM | ZCode | 国内个人账号；官方客户端已初始化项目 | 5 小时、周、月工具额度（以接口返回为准） |
+| MiniMax / M 系列 | MiniMax Code | 国内官方 OAuth 个人账号 | 5 小时、周 |
+| 阿里旗下 Qoder / 多模型 | Qoder | 全球版官方 npm CLI + Node.js，浏览器登录；已核对 1.1.68 | 订阅积分、加量包、组织资源包；不推算重置时间 |
+| 腾讯 / 多模型编程平台 | CodeBuddy | VS Code 默认配置的国内个人账号官方扩展登录 | 有效周期积分；首次读取需手动授权钥匙串 |
+
+模型和智能体不是一回事：GLM、Kimi 等是模型品牌，ZCode、Qoder、CodeBuddy 是使用模型完成工作的客户端；多模型客户端的额度也不等同于某个模型的 API 余额。阿里另有 Qwen Code，字节有豆包 / TRAE，百度有文心 / Comate；它们尚未在本应用实现官方登录额度查询。
+
+**不接入 API Key。** 没有 Key 输入、保存或创建功能。ZCode 只用官方客户端已有项目标识换取短期访问令牌；官方登录过期后需回到原客户端更新。CodeBuddy 当前不支持独立 CLI，Qoder 当前不支持原生安装版或中国区构建；这些限制会直接显示在应用中。
+
+实现来源、登录路径、支持范围及测试限制：[Kimi](docs/providers/kimi.md) · [ZCode / MiniMax](docs/providers/china-login.md) · [Qoder](docs/providers/qoder-codebuddy.md) · [CodeBuddy](docs/providers/codebuddy.md)。
 
 每个平台独立工作；未安装的服务会显示未连接，不影响其他平台。
 
@@ -70,20 +88,21 @@ OpenAI 标志、Claude Code 像素机器人和 Antigravity 标志替代字母缩
 | 彩色填充 / 黑色背景 | 剩余 / 已用比例；每次查询后同步更新 |
 | 灰色填充 | 刷新失败时保留上次比例，并显示 `!` |
 | 青绿 / 陶土橙 / 蓝色 | Codex / Claude Code / Antigravity 的平台强调色 |
-| 右侧 `5h` / `1w` | 当前额度周期；点击切换小时 / 周额度 |
+| 右侧 `5h` / `1w` / `额` | 当前额度周期；`额` 为订阅积分或月度额度，详情显示实际含义 |
 | `!` | 本次刷新失败，显示的是上次成功的数据 |
 | `—` | 尚未获取到有效额度 |
 
-胶囊宽度为 64 点。点击右侧竖线后的周期按钮可立即切换最近查询到的小时 / 周额度，各平台分别记住选择；首次优先小时周期，只有一种有效周期时按钮不可切换。左侧彩色进度只表示当前周期，黑色为已用，右侧按钮保持黑色。
+胶囊宽度为 64 点。点击右侧竖线后的周期按钮可立即切换最近查询到的小时 / 周 / 订阅额度，各平台分别记住选择；首次优先小时周期，只有一种有效周期时按钮不可切换。左侧彩色进度只表示当前周期，黑色为已用，右侧按钮保持黑色。
 
 点击胶囊左侧后，可切换平台、查看分组额度、重置时间、刷新状态，或点击 **立即刷新**。时间按系统当前时区显示。应用启动、电脑唤醒时也会刷新；常规刷新间隔为 180 秒，系统调度和网络可能造成延迟。
 
-**百分比怎么计算？** 按当前选择的周期计算：Codex 使用主额度桶；Claude 使用各有效额度组；Antigravity 仅使用 **Gemini** 分组。同一周期内多个有效额度窗口取最低剩余值，其他模型仍在详情中展示。未获取到 Gemini 额度时显示 `—`，不会改用其他模型额度。它表示最紧张的限制，不是所有模型额度的平均值。详情中保留独立窗口；某个模型组耗尽时，其他组仍可能可用。
+**百分比怎么计算？** 按当前选择的周期计算：Codex 使用主额度桶；Claude 使用各有效额度组；Antigravity 仅使用 **Gemini** 分组。Qoder 优先显示主套餐，主套餐缺失时依次使用加量包、组织资源包，独立资源包不会相互拉低百分比；其他平台同一周期内多个有效额度窗口取最低剩余值，其他模型仍在详情中展示。未获取到 Gemini 额度时显示 `—`，不会改用其他模型额度。它表示最紧张的限制，不是所有模型额度的平均值。详情中保留独立窗口；某个模型组耗尽时，其他组仍可能可用。
 
 ## 隐私与数据
 
 - Codex 和 Antigravity 的登录与刷新由各自官方 CLI 处理。
 - Claude 凭证仅在内存中用于向 `https://api.anthropic.com/api/oauth/usage` 发起认证请求；禁用重定向，不写入本应用缓存或日志。该客户端端点可能随服务更新而变化。
+- 国内实验适配仅在内存中使用官方登录，固定官方请求地址、拒绝重定向、限制响应大小，不刷新或改写登录。CodeBuddy 只读取指定扩展的登录记录，后台不会弹出钥匙串授权；Qoder 只调用已核对的官方 WASM 解码器，不执行 CLI 主程序。
 - 查询不会发送模型对话、不自动购买或兑换额度。官方客户端自身的网络行为仍由其实现决定。
 - 本应用没有自建服务器、分析追踪或自动更新服务。
 - 本地诊断文件 `~/Library/Application Support/CodexQuota/status.json` 记录刷新时间、次数、额度及错误状态，不保存令牌或账号 ID。提交 Issue 前仍请检查并隐藏不想公开的信息。

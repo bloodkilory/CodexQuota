@@ -3,9 +3,11 @@ struct QuotaWindow: Decodable {
     let usedPercent: Double?
     let windowDurationMins: Int?
     let resetsAt: Double?
+    var periodLabel: String? = nil
     var remaining: Double? { usedPercent.flatMap { $0.isFinite ? min(100, max(0, 100 - $0)) : nil } }
     var minutes: Int? { windowDurationMins }
     var title: String {
+        if let periodLabel { return periodLabel }
         guard let n = minutes else { return "额度窗口" }
         if n % 1440 == 0 { return "\(n / 1440) 天额度" }
         if n % 60 == 0 { return "\(n / 60) 小时额度" }

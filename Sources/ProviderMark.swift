@@ -1,8 +1,29 @@
 import AppKit
 
-// Monochrome menu-bar adaptations. See assets/PROVIDER-MARKS.md for sources.
+// Official provider assets and monochrome adaptations. See assets/PROVIDER-MARKS.md.
 enum ProviderMark {
+    private static let officialMarks: [QuotaProviderID: NSImage] = {
+        var marks: [QuotaProviderID: NSImage] = [:]
+        for provider in [QuotaProviderID.kimi, .zcode, .minimax, .qoder, .codebuddy] {
+            let name = provider.rawValue + ".png"
+            let bundled = Bundle.main.resourceURL?.appendingPathComponent("provider-marks/" + name)
+            let development = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("assets/provider-marks/" + name)
+            if let image = [bundled, development].compactMap({ $0 }).compactMap({ NSImage(contentsOf: $0) }).first {
+                marks[provider] = image
+            }
+        }
+        return marks
+    }()
     static func draw(_ provider: QuotaProviderID, in rect: CGRect) {
+        if let image = officialMarks[provider] {
+            let scale = min(rect.width / image.size.width, rect.height / image.size.height)
+            let size = NSSize(width: image.size.width * scale, height: image.size.height * scale)
+            image.draw(in: CGRect(x: rect.midX - size.width / 2, y: rect.midY - size.height / 2,
+                                 width: size.width, height: size.height),
+                       from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            return
+        }
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.saveGState()
         defer { context.restoreGState() }
@@ -12,6 +33,7 @@ enum ProviderMark {
         case .codex: path = codex
         case .antigravity: path = antigravity
         case .claude: path = claude
+        case .kimi, .zcode, .minimax, .qoder, .codebuddy: return
         }
         let box = path.boundingBoxOfPath
         let scale = min(rect.width / box.width, rect.height / box.height)

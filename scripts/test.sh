@@ -13,3 +13,17 @@ swiftc -swift-version 5 Sources/QuotaModels.swift Sources/CodexClient.swift Sour
 
 swiftc Sources/QuotaModels.swift Sources/ProviderState.swift Sources/ProviderMark.swift Sources/CapsuleView.swift Tests/Capsule/main.swift -o .build/capsule-tests
 .build/capsule-tests
+
+
+swiftc Sources/QuotaModels.swift Sources/CodexClient.swift Sources/KimiPayload.swift Sources/KimiQuotaClient.swift Tests/Kimi/main.swift -o .build/kimi-tests
+.build/kimi-tests
+swiftc Sources/QuotaModels.swift Sources/CodexClient.swift Sources/ProviderPayload.swift Sources/ChinaLoginPayload.swift Sources/ChinaLoginClients.swift Tests/ChinaLogin/main.swift -o .build/china-login-tests
+.build/china-login-tests
+swiftc Sources/QuotaModels.swift Sources/CodexClient.swift Sources/BoundedCommand.swift Sources/QoderPayload.swift Sources/QoderQuotaClient.swift Tests/Qoder/main.swift -o .build/qoder-tests
+.build/qoder-tests
+swiftc Sources/QuotaModels.swift Sources/CodexClient.swift Sources/ProviderPayload.swift Sources/ChinaLoginPayload.swift Sources/ChinaLoginClients.swift Sources/CodeBuddyPayload.swift Sources/CodeBuddyQuotaClient.swift Tests/CodeBuddy/main.swift -o .build/codebuddy-tests
+.build/codebuddy-tests
+# Optional offline official-WASM fixture test; never downloads or reads user credentials.
+if [[ -n "${QODER_TEST_BUNDLE:-}" ]]; then
+    node Tests/Qoder/helper.cjs "$QODER_TEST_BUNDLE"
+fi

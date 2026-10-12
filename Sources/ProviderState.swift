@@ -1,7 +1,31 @@
 import Foundation
 enum QuotaProviderID: String, CaseIterable {
-    case codex, claude, antigravity
-    var title: String { switch self { case .codex: return "Codex"; case .claude: return "Claude Code"; case .antigravity: return "Antigravity" } }
+    case codex, claude, antigravity, kimi, zcode, minimax, qoder, codebuddy
+    var title: String {
+        switch self {
+        case .codex: return "Codex"
+        case .claude: return "Claude Code"
+        case .antigravity: return "Antigravity"
+        case .kimi: return "Kimi Code"
+        case .zcode: return "智谱 ZCode"
+        case .minimax: return "MiniMax Code"
+        case .qoder: return "Qoder"
+        case .codebuddy: return "腾讯 CodeBuddy"
+        }
+    }
+    var experimental: Bool { ![Self.codex, .claude, .antigravity].contains(self) }
+    var loginHelp: String {
+        switch self {
+        case .codex: return "使用本机 Codex 官方登录。"
+        case .claude: return "请在终端运行 claude auth login 完成官方订阅登录。"
+        case .antigravity: return "使用本机 Antigravity CLI 登录，胶囊默认展示 Gemini。"
+        case .kimi: return "请先在 Kimi Code 官方客户端完成国内账号登录。"
+        case .zcode: return "请先在官方 ZCode 登录智谱个人账号并初始化项目。仅复用已有登录，不创建 API Key。"
+        case .minimax: return "请先在官方 MiniMax Code 登录国内个人账号。"
+        case .qoder: return "需要 Node.js 与兼容的全球版官方 npm Qoder CLI（已核对 1.1.68），通过浏览器登录；暂不支持原生安装版。"
+        case .codebuddy: return "需要 VS Code 默认配置中的腾讯 CodeBuddy 官方扩展国内个人账号登录。首次读取需手动授权钥匙串；暂不支持独立 CLI 登录。"
+        }
+    }
 }
 struct ProviderReading {
     var snapshot: QuotaSnapshot?
@@ -11,6 +35,7 @@ struct ProviderReading {
     var successes = 0
     func remaining(for provider: QuotaProviderID) -> Double? {
         if provider == .codex { return snapshot?.remaining }
+        if provider == .qoder { return windows(for: provider).compactMap { $0.remaining }.min() }
         if provider == .antigravity {
             // Never substitute another model family's quota when Gemini is unavailable.
             return snapshot?.buckets.filter {
@@ -22,8 +47,9 @@ struct ProviderReading {
 }
 
 enum QuotaPeriod: String, CaseIterable {
-    case short, weekly
+    case short, weekly, billing
     func includes(_ window: QuotaWindow) -> Bool {
+        if self == .billing { return window.minutes == nil }
         guard let minutes = window.minutes else { return false }
         return self == .weekly ? minutes == 10080 : minutes > 0 && minutes < 1440
     }
@@ -33,7 +59,10 @@ extension ProviderReading {
         let buckets: [QuotaBucket]
         switch provider {
         case .codex: buckets = snapshot?.selected.map { [$0.1] } ?? []
-        case .claude: buckets = snapshot?.buckets ?? []
+        case .claude, .kimi, .zcode, .minimax, .codebuddy: buckets = snapshot?.buckets ?? []
+        case .qoder:
+            // Add-ons are independent resources, not simultaneous subscription limits.
+            buckets = ["qoder", "qoder-addon", "qoder-org"].compactMap { snapshot?.rateLimitsByLimitId?[$0] }.prefix(1).map { $0 }
         case .antigravity:
             buckets = snapshot?.buckets.filter {
                 $0.limitName?.range(of: #"\bgemini\b"#, options: [.regularExpression, .caseInsensitive]) != nil
@@ -53,7 +82,9 @@ extension ProviderReading {
         return windows(for: provider).filter(period.includes).min { ($0.remaining ?? 100) < ($1.remaining ?? 100) }
     }
     func periodLabel(for provider: QuotaProviderID, period: QuotaPeriod?) -> String {
-        guard let period, let minutes = window(for: provider, period: period)?.minutes else { return "—" }
+        guard let period, let window = window(for: provider, period: period) else { return "—" }
+        if period == .billing { return "额" }
+        guard let minutes = window.minutes else { return "—" }
         if period == .weekly { return "1w" }
         return minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes)m"
     }

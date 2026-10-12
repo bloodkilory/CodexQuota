@@ -7,6 +7,11 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var timer: Timer?
     private let claudeClient = ClaudeQuotaClient()
     private let antigravityClient = AntigravityQuotaClient()
+    private let kimiClient = KimiQuotaClient()
+    private let zcodeClient = ZCodeQuotaClient()
+    private let minimaxClient = MiniMaxQuotaClient()
+    private let qoderClient = QoderQuotaClient()
+    private let codebuddyClient = CodeBuddyQuotaClient()
     private var readings = Dictionary(uniqueKeysWithValues: QuotaProviderID.allCases.map { ($0, ProviderReading()) })
     private var selectedProvider = QuotaProviderID(rawValue: UserDefaults.standard.string(forKey: "selectedProvider") ?? "") ?? .codex
     private func preferredPeriod(for provider: QuotaProviderID) -> QuotaPeriod {
@@ -58,6 +63,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate(); client.shutdown(); claudeClient.shutdown(); antigravityClient.shutdown()
+        kimiClient.shutdown(); zcodeClient.shutdown(); minimaxClient.shutdown(); qoderClient.shutdown(); codebuddyClient.shutdown()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
     }
     @objc private func woke() { refresh() }
@@ -66,6 +72,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
     @objc private func manualRefresh() { refresh(selectedProvider) }
     @objc private func authorizeClaude() { refresh(.claude, allowPrompt: true) }
+    @objc private func authorizeCodeBuddy() { refresh(.codebuddy, allowPrompt: true) }
     private func refresh(_ provider: QuotaProviderID, allowPrompt: Bool = false) {
         guard readings[provider]?.refreshing != true else { return }
         readings[provider]?.refreshing = true
@@ -90,10 +97,15 @@ final class AppController: NSObject, NSApplicationDelegate {
         case .codex: client.fetch(completion)
         case .claude: claudeClient.fetch(allowPrompt: allowPrompt, completion: completion)
         case .antigravity: antigravityClient.fetch(completion)
+        case .kimi: kimiClient.fetch(completion)
+        case .zcode: zcodeClient.fetch(completion: completion)
+        case .minimax: minimaxClient.fetch(completion: completion)
+        case .qoder: qoderClient.fetch(completion)
+        case .codebuddy: codebuddyClient.fetch(allowPrompt: allowPrompt, completion: completion)
         }
     }
-    @objc private func selectProvider(_ sender: NSSegmentedControl) {
-        selectedProvider = QuotaProviderID.allCases[sender.selectedSegment]
+    @objc private func selectProvider(_ sender: NSPopUpButton) {
+        selectedProvider = QuotaProviderID.allCases[sender.indexOfSelectedItem]
         UserDefaults.standard.set(selectedProvider.rawValue, forKey: "selectedProvider")
         render(); writeDiagnostics()
     }
@@ -147,7 +159,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         let title = "\(selectedProvider.title)\(selectedProvider == .antigravity ? " Gemini" : "") \(capsule.periodText) 剩余额度 \(value)" + (errorMessage == nil ? "" : "，查询失败或数据过期")
         capsule.detailButton.setAccessibilityLabel(title + "，打开详情")
         capsule.detailButton.toolTip = title
-        let periodHelp = "当前 " + capsule.periodText + (capsule.canSwitchPeriod ? "，点击切换小时 / 周额度" : "，暂无其他有效周期")
+        let periodHelp = "当前 " + capsule.periodText + (capsule.canSwitchPeriod ? "，点击切换额度周期" : "，暂无其他有效周期")
         capsule.periodButton.setAccessibilityLabel(periodHelp)
         capsule.periodButton.toolTip = periodHelp
         if popover.isShown { buildPopover() }
@@ -169,13 +181,19 @@ final class AppController: NSObject, NSApplicationDelegate {
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 9
         stack.edgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
         stack.addArrangedSubview(label("余度 QuotaNest", size: 18, bold: true))
-        let picker = NSSegmentedControl(labels: ["Codex", "Claude", "Antigravity"], trackingMode: .selectOne, target: self, action: #selector(selectProvider(_:)))
-        picker.selectedSegment = QuotaProviderID.allCases.firstIndex(of: selectedProvider)!
+        let picker = NSPopUpButton(frame: .zero, pullsDown: false)
+        picker.addItems(withTitles: QuotaProviderID.allCases.map { $0.title + ($0.experimental ? " · 实验" : "") })
+        picker.target = self; picker.action = #selector(selectProvider(_:))
+        picker.selectItem(at: QuotaProviderID.allCases.firstIndex(of: selectedProvider)!)
         picker.widthAnchor.constraint(equalToConstant: 322).isActive = true
         stack.addArrangedSubview(picker)
         stack.addArrangedSubview(label(selectedProvider.title, size: 16, bold: true))
+        if selectedProvider.experimental {
+            stack.addArrangedSubview(label("实验性接入 · 尚未用真实账号验证", size: 11, color: .systemOrange))
+        }
+        stack.addArrangedSubview(label(selectedProvider.loginHelp, size: 11, color: .secondaryLabelColor))
         if let selected = snapshot?.selected {
-            let source = selectedProvider == .codex ? (selected.1.planType ?? "Codex 登录账号") : selectedProvider == .claude ? "本机 Claude 官方登录" : "本机 Antigravity CLI 登录"
+            let source = selectedProvider == .codex ? (selected.1.planType ?? "Codex 登录账号") : "本机 " + selectedProvider.title + " 官方登录"
             stack.addArrangedSubview(label(source + " · 胶囊：" + (selectedProvider == .antigravity ? "Gemini " : "") + reading.periodLabel(for: selectedProvider, period: displayedPeriod), color: .secondaryLabelColor))
         }
         if let errorMessage { stack.addArrangedSubview(label("⚠ \(errorMessage)" + (snapshot == nil ? "" : "\n当前百分比为上次成功查询结果。"), color: .systemOrange)) }
@@ -192,7 +210,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                     if window.remaining != nil { stack.addArrangedSubview(bar) }
                 }
                 if let credits = bucket.credits {
-                    stack.addArrangedSubview(label("额外 Credits：\(credits.unlimited == true ? "无限" : credits.balance ?? "未提供")", color: .secondaryLabelColor))
+                    stack.addArrangedSubview(label("Credits 余额：\(credits.unlimited == true ? "无限" : credits.balance ?? "未提供")", color: .secondaryLabelColor))
                 }
             }
         } else { stack.addArrangedSubview(label(refreshing ? "正在读取官方套餐…" : "尚未取得额度", color: .secondaryLabelColor)) }
@@ -203,7 +221,10 @@ final class AppController: NSObject, NSApplicationDelegate {
         if selectedProvider == .claude && errorMessage != nil {
             let authorize = NSButton(title: "授权 Claude 登录读取", target: self, action: #selector(authorizeClaude))
             authorize.isEnabled = !refreshing; stack.addArrangedSubview(authorize)
-            stack.addArrangedSubview(label("使用 Claude Code 官方订阅登录；若未登录，请在终端运行 claude auth login。", size: 11, color: .secondaryLabelColor))
+        }
+        if selectedProvider == .codebuddy && errorMessage != nil {
+            let authorize = NSButton(title: "授权 CodeBuddy 登录读取", target: self, action: #selector(authorizeCodeBuddy))
+            authorize.isEnabled = !refreshing; stack.addArrangedSubview(authorize)
         }
         let login = NSButton(checkboxWithTitle: "登录时启动", target: self, action: #selector(toggleLogin(_:))); login.state = LoginItemManager.enabled ? .on : .off
         stack.addArrangedSubview(login)
@@ -223,7 +244,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "zh_CN"); formatter.dateFormat = "MM-dd HH:mm:ss"; return formatter.string(from: date)
     }
     private func resetText(_ timestamp: Double?) -> String {
-        guard let timestamp, timestamp.isFinite, timestamp > 0 else { return "重置时间：未提供" }
+        guard let timestamp, timestamp.isFinite, timestamp > 0, timestamp <= 253402300799 else { return "重置时间：未提供" }
         let date = Date(timeIntervalSince1970: timestamp), seconds = date.timeIntervalSinceNow
         if seconds <= 0 { return "重置：\(dateString(date)) · 等待服务更新" }
         let hours = Int(seconds / 3600), minutes = Int(seconds.truncatingRemainder(dividingBy: 3600) / 60)

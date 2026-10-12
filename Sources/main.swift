@@ -4,6 +4,7 @@ signal(SIGPIPE, SIG_IGN)
 if CommandLine.arguments.contains("--check-all") {
     let group = DispatchGroup()
     let codex = CodexClient(), claude = ClaudeQuotaClient(), antigravity = AntigravityQuotaClient()
+    let kimi = KimiQuotaClient(), zcode = ZCodeQuotaClient(), minimax = MiniMaxQuotaClient(), qoder = QoderQuotaClient(), codebuddy = CodeBuddyQuotaClient()
     let report: (String, Result<QuotaSnapshot, Error>) -> Void = { name, result in
         switch result {
         case .success(let snapshot):
@@ -18,8 +19,14 @@ if CommandLine.arguments.contains("--check-all") {
     group.enter(); codex.fetch { report("Codex", $0) }
     group.enter(); claude.fetch { report("Claude", $0) }
     group.enter(); antigravity.fetch { report("Antigravity", $0) }
+    group.enter(); kimi.fetch { report("Kimi (experimental)", $0) }
+    group.enter(); zcode.fetch { report("ZCode (experimental)", $0) }
+    group.enter(); minimax.fetch { report("MiniMax (experimental)", $0) }
+    group.enter(); qoder.fetch { report("Qoder (experimental)", $0) }
+    group.enter(); codebuddy.fetch(allowPrompt: false) { report("CodeBuddy (experimental)", $0) }
     let completed = group.wait(timeout: .now() + 50) == .success
     codex.shutdown(); claude.shutdown(); antigravity.shutdown()
+    kimi.shutdown(); zcode.shutdown(); minimax.shutdown(); qoder.shutdown(); codebuddy.shutdown()
     exit(completed ? 0 : 1)
 }
 if CommandLine.arguments.contains("--check") {
