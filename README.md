@@ -13,6 +13,10 @@
 
 QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude Code 和 Google Antigravity** 的套餐余量放进一颗小胶囊。每 3 分钟刷新，点击即可查看各额度窗口和重置时间。
 
+![菜单栏图标和余量填充示例（放大 3 倍，示例数据）](assets/capsule-preview.png)
+
+<p align="center"><sub>实际绘制效果，放大 3 倍 · 示例余量 · 彩色为剩余，黑色为已用</sub></p>
+
 - **一眼知道还能用多少**：显示剩余百分比，彩色背景宽度随剩余比例变化，已用部分为黑色。
 - **三个平台，一个入口**：切换平台，独立查询，记住上次选择。
 - **沿用官方登录**：通过本机官方 CLI 或订阅 OAuth 查询，不需要把密钥粘贴给本应用。
@@ -27,7 +31,7 @@ QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude 
 1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.4.0-universal.dmg`。
 2. 打开 DMG，将 **QuotaNest.app** 拖到 **Applications**。
 3. 推出磁盘映像，从“应用程序”打开 QuotaNest。
-4. 在菜单栏找到 带平台图标的百分比胶囊，完成下面的账号登录后等待刷新。
+4. 在菜单栏找到带平台图标的百分比胶囊，完成下面的账号登录后等待刷新。
 5. 需要开机自启时，点击胶囊并勾选 **登录时启动**。
 
 **首次打开提示无法验证开发者？** 当前社区构建使用 ad-hoc 签名，尚未经过 Apple Developer ID 签名及公证。尝试打开后，在 **系统设置 → 隐私与安全性 → 仍要打开** 中单独允许此应用。无需关闭 Gatekeeper。受管理的工作电脑可能不允许此操作。
@@ -57,8 +61,6 @@ shasum -a 256 ~/Downloads/QuotaNest-1.4.0-universal.dmg
 **默认探测位置**：Codex 为 `~/.local/bin/codex`、`/opt/homebrew/bin/codex`、`/usr/local/bin/codex`；Antigravity 对应同目录的 `agy`。Claude 使用 `~/.claude/.credentials.json` 或默认钥匙串服务 `Claude Code-credentials`。目前不自动遍历多账号、自定义配置目录或其他密码库。
 
 ## 使用
-
-![菜单栏图标和余量填充示例（放大 3 倍，示例数据）](assets/capsule-preview.png)
 
 OpenAI 标志、Claude Code 像素机器人和 Antigravity 标志替代字母缩写；悬停可查看完整平台名称。
 

@@ -4,6 +4,10 @@
 
 A native Swift/AppKit menu bar utility for **Codex, Claude Code, and Google Antigravity**. A small capsule shows your remaining quota and refreshes every three minutes. Click it for individual limits and reset times. The current app interface is Chinese.
 
+![Menu bar rendering, enlarged 3× with sample data](assets/capsule-preview.png)
+
+<p align="center"><sub>Actual rendering, enlarged 3× · Sample quotas · Colored = remaining, black = used</sub></p>
+
 ## Install
 
 Requires macOS 13+. Download the universal DMG from this repository’s **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)**, drag the app into **Applications**, eject the image, then open the installed app. Intel and Apple Silicon binaries are included. Provider CLIs are separate prerequisites.
@@ -53,4 +57,3 @@ Issues and pull requests are welcome. Include OS/app/CLI versions and redacted r
 
 The compact capsule uses provider marks instead of letter abbreviations. Its colored width tracks the remaining percentage; the depleted portion is black. A failed refresh preserves the last known fraction in gray with `!`. Updates follow real quota readings every 180 seconds.
 
-![Menu bar rendering, enlarged 3× with sample data](assets/capsule-preview.png)
