@@ -12,6 +12,20 @@
 
 ## Global Constraints
 
+## Execution result — 2026-10-13
+
+Implemented on `feat/github-release-updater`, based on `e37c390`. Implementation commits: `b8f7934` and `4649d90`. All six tasks are complete; the checklists below preserve the original plan rather than an exact shell transcript.
+
+- Full existing and updater regression suite passed after final corrections (`scripts/test.sh`, exit 0).
+- Production ReleaseUpdateClient live smoke accepted official v1.6.0 metadata, downloaded the actual checksum and DMG, and verified SHA-256. No live install performed.
+- Final v1.7.0/build 10 app and helper both compiled for arm64 + x86_64. Actual built app passed the production bundle validator, strict deep signature verification, DMG verification and local SHA-256 manifest verification.
+- An independent review found two Important issues: executing a writable helper as root, and accepting non-executable app/helper binaries. Both fixed in one pass with failing-then-passing tests. Root execution now checks a protected helper copy against a SHA-256 identity embedded in the running app.
+- Deferred minors: administrator authorization cancellation retains the download stage; failure to move a rejected candidate aside can prevent restoration and require manual use of the retained backup.
+- Implementation rulings: local version advanced to 1.7.0/10 (may be changed before publication); elevated installation copies into a protected sibling directory before validation (additional disk space); helper entry is `Helpers/Update/main.swift`, with shared replacement code in `Sources/UpdateReplacement.swift` (additional file); actual administrator prompt and GUI relaunch await a live update to a newer published release (OS integration remains unverified in a real install).
+- No source push, tag, public release, main merge or installed-app replacement performed. Final DMG is in this worktree's `dist/QuotaNest-1.7.0-universal.dmg`.
+
+## Global Constraints (implementation)
+
 - Support macOS 13+ and retain universal arm64 + x86_64 builds.
 - Request only https://api.github.com/repos/bloodkilory/QuotaNest/releases/latest; reject metadata redirects and do not persist cookies or credentials.
 - Download selected assets through their fixed GitHub asset API endpoints, permitting one HTTPS redirect only to release-assets.githubusercontent.com or objects.githubusercontent.com.
