@@ -28,7 +28,7 @@ QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude 
 
 **系统要求：macOS 13 或更新版本。** DMG 内含 Intel / Apple Silicon 通用应用；对应平台支持的官方客户端需要另外安装并登录。
 
-1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载 `QuotaNest-1.6.0-universal.dmg`。
+1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载最新的 `QuotaNest-<version>-universal.dmg`。
 2. 打开 DMG，将 **QuotaNest.app** 拖到 **Applications**。
 3. 推出磁盘映像，从“应用程序”打开 QuotaNest。
 4. 在菜单栏找到带平台图标的百分比胶囊，完成下面的账号登录后等待刷新。
@@ -96,6 +96,14 @@ OpenAI 标志、Claude Code 像素机器人和 Antigravity 标志替代字母缩
 
 点击胶囊左侧后，可切换平台、查看分组额度、重置时间、刷新状态，或点击 **立即刷新**。时间按系统当前时区显示。应用启动、电脑唤醒时也会刷新；常规刷新间隔为 180 秒，系统调度和网络可能造成延迟。
 
+### 应用更新
+
+v1.7.0 起，每次启动会静默检查一次本仓库的 GitHub 正式 Release；菜单中的 **检查更新** 可手动重查，没有定时检查或自动检查开关。发现新版本后点击 **更新到 vX.Y.Z**，应用会下载对应通用 DMG 和 `SHA256SUMS.txt`，校验 SHA-256、应用身份、版本、资源、架构和签名完整性，再询问是否安装并重启。
+
+应用须安装在 `~/Applications/QuotaNest.app` 或 `/Applications/QuotaNest.app`；从 DMG 或构建目录运行时只能检查更新。更新系统 `/Applications` 时会请求 macOS 管理员授权。更新会保留平台设置、官方登录和“登录时启动”选择；旧应用保存在同目录的 `QuotaNest.app.previous.*` 备份中，替换或验证失败会尝试恢复旧应用。若更新后没有重新打开，可从 Applications 手动启动，菜单会显示安装结果。
+
+更新源固定为 `bloodkilory/QuotaNest` 正式 Release，不接受测试版、自定义源或其他仓库。SHA-256 用于核对发布附件完整性；当前仍为 ad-hoc 签名、未公证。
+
 **百分比怎么计算？** 按当前选择的周期计算：Codex 使用主额度桶；Claude 使用各有效额度组；Antigravity 仅使用 **Gemini** 分组。Qoder 优先显示主套餐，主套餐缺失时依次使用加量包、组织资源包，独立资源包不会相互拉低百分比；其他平台同一周期内多个有效额度窗口取最低剩余值，其他模型仍在详情中展示。未获取到 Gemini 额度时显示 `—`，不会改用其他模型额度。它表示最紧张的限制，不是所有模型额度的平均值。详情中保留独立窗口；某个模型组耗尽时，其他组仍可能可用。
 
 ## 隐私与数据
@@ -104,7 +112,7 @@ OpenAI 标志、Claude Code 像素机器人和 Antigravity 标志替代字母缩
 - Claude 凭证仅在内存中用于向 `https://api.anthropic.com/api/oauth/usage` 发起认证请求；禁用重定向，不写入本应用缓存或日志。该客户端端点可能随服务更新而变化。
 - 国内实验适配仅在内存中使用官方登录，固定官方请求地址、拒绝重定向、限制响应大小，不刷新或改写登录。CodeBuddy 只读取指定扩展的登录记录，后台不会弹出钥匙串授权；Qoder 只调用已核对的官方 WASM 解码器，不执行 CLI 主程序。
 - 查询不会发送模型对话、不自动购买或兑换额度。官方客户端自身的网络行为仍由其实现决定。
-- 本应用没有自建服务器、分析追踪或自动更新服务。
+- 本应用没有自建服务器或分析追踪；启动检查及用户触发的更新会连接 GitHub 官方发布服务，不发送平台登录凭据。
 - 本地诊断文件 `~/Library/Application Support/CodexQuota/status.json` 记录刷新时间、次数、额度及错误状态，不保存令牌或账号 ID。提交 Issue 前仍请检查并隐藏不想公开的信息。
 
 ## 常见问题

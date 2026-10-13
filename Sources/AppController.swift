@@ -12,6 +12,12 @@ final class AppController: NSObject, NSApplicationDelegate {
     private let minimaxClient = MiniMaxQuotaClient()
     private let qoderClient = QoderQuotaClient()
     private let codebuddyClient = CodeBuddyQuotaClient()
+    private let updateClient = ReleaseUpdateClient()
+    private let updateInstaller = UpdateInstaller()
+    private var updateState = UpdateMenuState.busy("正在检查更新…")
+    private var updateRelease: UpdateRelease?
+    private var previousUpdateMessage: String?
+    private var currentVersion: DottedVersion? { DottedVersion(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") }
     private var readings = Dictionary(uniqueKeysWithValues: QuotaProviderID.allCases.map { ($0, ProviderReading()) })
     private var selectedProvider = QuotaProviderID(rawValue: UserDefaults.standard.string(forKey: "selectedProvider") ?? "") ?? .codex
     private func preferredPeriod(for provider: QuotaProviderID) -> QuotaPeriod {
@@ -60,11 +66,13 @@ final class AppController: NSObject, NSApplicationDelegate {
         RunLoop.main.add(timer, forMode: .common)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
         refresh()
+        if !CommandLine.arguments.contains("--preview") { readPreviousUpdateStatus(); checkForUpdate() }
     }
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate(); client.shutdown(); claudeClient.shutdown(); antigravityClient.shutdown()
         kimiClient.shutdown(); zcodeClient.shutdown(); minimaxClient.shutdown(); qoderClient.shutdown(); codebuddyClient.shutdown()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+        updateClient.cancel()
     }
     @objc private func woke() { refresh() }
     @objc private func refresh() {
@@ -73,6 +81,72 @@ final class AppController: NSObject, NSApplicationDelegate {
     @objc private func manualRefresh() { refresh(selectedProvider) }
     @objc private func authorizeClaude() { refresh(.claude, allowPrompt: true) }
     @objc private func authorizeCodeBuddy() { refresh(.codebuddy, allowPrompt: true) }
+    private func showUpdateState(_ state: UpdateMenuState) {
+        updateState = state
+        if popover.isShown { buildPopover() }
+    }
+    @objc private func checkForUpdate() {
+        guard let version = currentVersion else { showUpdateState(.failed("无法识别当前应用版本")); return }
+        updateRelease = nil; showUpdateState(.busy("正在检查更新…"))
+        updateClient.check(currentVersion:version) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                switch result {
+                case .success(.upToDate): self.showUpdateState(.current(version.text))
+                case .success(.available(let release)): self.updateRelease = release; self.showUpdateState(.available(release.version.text))
+                case .failure(let error): self.showUpdateState(.failed(error.localizedDescription))
+                }
+            }
+        }
+    }
+    @objc private func installUpdate() {
+        guard updateState.isActionEnabled, let release = updateRelease, let version = currentVersion else { return }
+        showUpdateState(.busy("正在下载并校验安装包…"))
+        updateClient.download(release) { [weak self] result in
+            switch result {
+            case .failure(let error): DispatchQueue.main.async { self?.showUpdateState(.failed(error.localizedDescription)) }
+            case .success(let dmg):
+                DispatchQueue.main.async { self?.showUpdateState(.busy("正在验证更新应用…")) }
+                self?.updateInstaller.stage(dmg,currentVersion:version) { preparedResult in
+                    DispatchQueue.main.async {
+                        guard let self else { return }
+                        switch preparedResult {
+                        case .failure(let error): self.showUpdateState(.failed(error.localizedDescription))
+                        case .success(let prepared): self.confirmUpdate(prepared,release:release)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    private func confirmUpdate(_ prepared: PreparedUpdate, release: UpdateRelease) {
+        popover.performClose(nil)
+        let alert = NSAlert(); alert.messageText = "安装余度 QuotaNest v" + release.version.text + "？"
+        alert.informativeText = "下载及校验已完成。应用将退出、保留旧版本备份并安装更新，随后重新打开。" + (prepared.target.isUser ? "" : "\n需要时 macOS 会请求管理员授权。")
+        alert.addButton(withTitle:"安装并重启"); alert.addButton(withTitle:"取消")
+        guard alert.runModal() == .alertFirstButtonReturn else { UpdatePaths.clean(prepared.directory); showUpdateState(.available(release.version.text)); return }
+        showUpdateState(.busy("正在准备安装，请完成系统授权…"))
+        UserDefaults.standard.set(prepared.directory.path,forKey:"pendingUpdateDirectory")
+        UpdatePrivilegeLauncher.launch(prepared) { [weak self] result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success: NSApp.terminate(nil)
+                case .failure(let error): self?.showUpdateState(.failed(error.localizedDescription))
+                }
+            }
+        }
+    }
+    private func readPreviousUpdateStatus() {
+        guard let path = UserDefaults.standard.string(forKey:"pendingUpdateDirectory") else { return }
+        let directory = URL(fileURLWithPath:path)
+        guard directory.deletingLastPathComponent().standardizedFileURL == UpdatePaths.root().standardizedFileURL, directory.lastPathComponent.hasPrefix("stage.") else { return }
+        if let data = try? Data(contentsOf:directory.appendingPathComponent("status.json")), data.count <= 16384,
+           let status = try? JSONDecoder().decode(UpdateInstallStatus.self,from:data), ["failed","installed"].contains(status.state) {
+            previousUpdateMessage = status.message
+            UserDefaults.standard.removeObject(forKey:"pendingUpdateDirectory")
+            UpdatePaths.clean(directory)
+        }
+    }
     private func refresh(_ provider: QuotaProviderID, allowPrompt: Bool = false) {
         guard readings[provider]?.refreshing != true else { return }
         readings[provider]?.refreshing = true
@@ -225,6 +299,18 @@ final class AppController: NSObject, NSApplicationDelegate {
         if selectedProvider == .codebuddy && errorMessage != nil {
             let authorize = NSButton(title: "授权 CodeBuddy 登录读取", target: self, action: #selector(authorizeCodeBuddy))
             authorize.isEnabled = !refreshing; stack.addArrangedSubview(authorize)
+        }
+        stack.addArrangedSubview(label("应用更新", bold:true))
+        stack.addArrangedSubview(label("当前版本 v" + (currentVersion?.text ?? "未知"),size:11,color:.secondaryLabelColor))
+        stack.addArrangedSubview(label(updateState.title,size:11,color:.secondaryLabelColor))
+        if let previousUpdateMessage { stack.addArrangedSubview(label(previousUpdateMessage,size:11,color:.systemOrange)) }
+        let checkButton = NSButton(title:"检查更新",target:self,action:#selector(checkForUpdate)); checkButton.isEnabled = updateState.isActionEnabled
+        stack.addArrangedSubview(checkButton)
+        if let release = updateRelease {
+            if (try? UpdateTarget.resolve(runningBundle:Bundle.main.bundleURL)) != nil {
+                let updateButton = NSButton(title:"更新到 v" + release.version.text,target:self,action:#selector(installUpdate)); updateButton.isEnabled = updateState.isActionEnabled
+                stack.addArrangedSubview(updateButton)
+            } else { stack.addArrangedSubview(label("请安装至 ~/Applications 或 /Applications 后更新",size:11,color:.secondaryLabelColor)) }
         }
         let login = NSButton(checkboxWithTitle: "登录时启动", target: self, action: #selector(toggleLogin(_:))); login.state = LoginItemManager.enabled ? .on : .off
         stack.addArrangedSubview(login)

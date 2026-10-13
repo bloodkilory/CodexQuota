@@ -6,11 +6,14 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" .build/bin
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
 for ARCH in arm64 x86_64; do
     swiftc -swift-version 5 -O -sdk "$SDK" -target "$ARCH-apple-macosx13.0" -framework AppKit Sources/*.swift -o ".build/bin/QuotaNest-$ARCH"
+    swiftc -swift-version 5 -O -sdk "$SDK" -target "$ARCH-apple-macosx13.0" Sources/UpdateModels.swift Sources/UpdateHelperContract.swift Sources/UpdateReplacement.swift Helpers/Update/main.swift -o ".build/bin/QuotaNestUpdateHelper-$ARCH"
 done
 lipo -create .build/bin/QuotaNest-arm64 .build/bin/QuotaNest-x86_64 -output "$APP/Contents/MacOS/QuotaNest"
 cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp assets/PROVIDER-MARKS.md "$APP/Contents/Resources/PROVIDER-MARKS.md"
 cp Helpers/qoder-usage.cjs "$APP/Contents/Resources/qoder-usage.cjs"
+lipo -create .build/bin/QuotaNestUpdateHelper-arm64 .build/bin/QuotaNestUpdateHelper-x86_64 -output "$APP/Contents/Resources/quotanest-update-helper"
+codesign --force --sign "${SIGNING_IDENTITY:--}" "$APP/Contents/Resources/quotanest-update-helper"
 cp -R assets/provider-marks "$APP/Contents/Resources/"
 cp LICENSE "$APP/Contents/Resources/LICENSE"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -23,8 +26,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>QuotaNest</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.6.0</string>
-<key>CFBundleVersion</key><string>9</string>
+<key>CFBundleShortVersionString</key><string>1.7.0</string>
+<key>CFBundleVersion</key><string>10</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>

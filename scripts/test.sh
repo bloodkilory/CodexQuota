@@ -23,6 +23,12 @@ swiftc Sources/QuotaModels.swift Sources/CodexClient.swift Sources/BoundedComman
 .build/qoder-tests
 swiftc Sources/QuotaModels.swift Sources/CodexClient.swift Sources/ProviderPayload.swift Sources/ChinaLoginPayload.swift Sources/ChinaLoginClients.swift Sources/CodeBuddyPayload.swift Sources/CodeBuddyQuotaClient.swift Tests/CodeBuddy/main.swift -o .build/codebuddy-tests
 .build/codebuddy-tests
+swiftc -swift-version 5 Sources/UpdateModels.swift Sources/ReleaseUpdateClient.swift Sources/UpdateHelperContract.swift Sources/UpdateReplacement.swift Sources/UpdateInstaller.swift Sources/UpdatePrivilegeLauncher.swift Sources/LoginItemManager.swift Sources/CodexClient.swift Sources/QuotaModels.swift Tests/Updates/main.swift -o .build/update-tests
+.build/update-tests
+swiftc -swift-version 5 Sources/UpdateModels.swift Sources/UpdateHelperContract.swift Sources/UpdateReplacement.swift Helpers/Update/main.swift -o .build/update-helper-tests
+if .build/update-helper-tests --request /unapproved/request.json; then
+    echo 'FAIL helper accepted invalid request'; exit 1
+fi
 # Optional offline official-WASM fixture test; never downloads or reads user credentials.
 if [[ -n "${QODER_TEST_BUNDLE:-}" ]]; then
     node Tests/Qoder/helper.cjs "$QODER_TEST_BUNDLE"

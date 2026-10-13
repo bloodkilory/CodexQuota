@@ -48,9 +48,17 @@ Select a provider in the popover: **Codex**, **Claude Code**, or **Antigravity**
 
 Provider accents are teal for Codex, terracotta for Claude and blue for Antigravity. `!` means refresh failed and the value is stale; `—` means no valid data yet. The app also refreshes on launch and wake. Choose **登录时启动** to launch at login, **立即刷新** to refresh, and **退出** to quit. After moving the installed app, toggle launch at login off and on to update its path.
 
+## Application updates
+
+Starting with v1.7.0, QuotaNest silently checks this repository's latest stable GitHub Release once at launch. **检查更新** checks again manually; there is no periodic check or settings switch. **更新到 vX.Y.Z** downloads the exact universal DMG and SHA256SUMS.txt, verifies SHA-256, bundle identity/version/resources, universal architecture and signature integrity, then asks to install and restart.
+
+Self-installation supports only `~/Applications/QuotaNest.app` and `/Applications/QuotaNest.app`. The system Applications target requests macOS administrator authorization. Provider settings, official logins and the launch-at-login choice are retained. The previous app remains beside the installation as `QuotaNest.app.previous.*`; replacement/validation failures attempt to restore it. If relaunch fails, open the app manually to see its recorded installation status. DMG or build-directory launches can check but cannot install.
+
+Only stable releases from `bloodkilory/QuotaNest` are used. Checksums verify release asset integrity; current builds remain ad-hoc signed and not notarized.
+
 ## Privacy and limitations
 
-No app-owned server, analytics, model conversations, automatic credit purchases, or automatic updater. Codex and Antigravity manage their own credentials. Claude OAuth is used only in memory for the official usage endpoint, without redirects or credential rewrites; expired credentials require signing in again. That endpoint may change upstream.
+No app-owned server, analytics, model conversations or automatic credit purchases. Update checks and user-triggered downloads contact GitHub's official release services without provider credentials. Codex and Antigravity manage their own credentials. Claude OAuth is used only in memory for the official usage endpoint, without redirects or credential rewrites; expired credentials require signing in again. That endpoint may change upstream.
 
 Local diagnostics live at `~/Library/Application Support/CodexQuota/status.json` and contain usage/status but no tokens or account IDs. Review diagnostics before sharing. Independent community project, unaffiliated with OpenAI, Anthropic, or Google.
 
