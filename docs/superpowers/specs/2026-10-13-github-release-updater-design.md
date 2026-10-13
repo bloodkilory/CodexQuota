@@ -22,20 +22,20 @@ Each eligible release must include both assets below:
 1. `QuotaNest-<version>-universal.dmg`
 2. `SHA256SUMS.txt`
 
-The updater downloads the GitHub Release API JSON without redirects and decodes only the fields required for its version and assets. It ignores release notes and all other URLs. It accepts the DMG only if:
+The updater downloads the GitHub Release API JSON without redirects and decodes only the fields required for its version and assets. It ignores release notes and all other URLs. It downloads each selected asset through its fixed GitHub asset API URL using GitHub's binary asset protocol: that request may follow one HTTPS redirect only to `release-assets.githubusercontent.com` or `objects.githubusercontent.com`, and all other redirects fail. It accepts the DMG only if:
 
 - the DMG asset name exactly matches the release tag version after the leading `v` is removed;
 - `SHA256SUMS.txt` has exactly one SHA-256 row for that exact DMG filename;
 - the downloaded DMG SHA-256 equals that row, using a constant-time digest comparison;
 - the candidate version is strictly greater than `CFBundleShortVersionString` using numeric dotted-version comparison.
 
-Missing, duplicate, malformed, redirecting, oversize, or mismatched assets fail safely. No unverified archive is mounted or installed.
+Missing, duplicate, malformed, oversize, or mismatched assets fail safely, as do metadata redirects and asset redirects outside the constrained GitHub path. No unverified archive is mounted or installed.
 
 ## Components
 
 ### `ReleaseUpdateClient`
 
-Owns the fixed Release API request, stable-release validation, semantic version comparison, bounded asset downloads, and SHA-256 manifest parsing. It uses an ephemeral `URLSession`, no cookies or credential storage, disabled redirects, explicit timeout, and response-size limits. Its public result is one of:
+Owns the fixed Release API request, stable-release validation, semantic version comparison, bounded asset downloads, and SHA-256 manifest parsing. It uses an ephemeral `URLSession`, no cookies or credential storage, explicit timeout, and response-size limits. It rejects all metadata redirects and permits only the constrained GitHub asset redirect described above. Its public result is one of:
 
 - `.upToDate(currentVersion)`
 - `.available(UpdateRelease)` with version, DMG URL, checksum URL, and expected digest
