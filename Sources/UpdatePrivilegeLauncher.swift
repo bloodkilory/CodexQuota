@@ -3,6 +3,13 @@ import Darwin
 
 enum UpdatePrivilegeLauncher {
     static func shellQuote(_ value: String) -> String { "'" + value.replacingOccurrences(of:"'",with:"'\\''") + "'" }
+    static func privilegedCommand(helper: String, request: String, expectedDigest: String) throws -> String {
+        guard expectedDigest.count == 64, expectedDigest.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) }) else { throw UpdateError("更新助手校验标识无效") }
+        // The directory comes exclusively from root's mktemp, never from a request.
+        // The child cannot change its parent's cleanup variable. Only the copied,
+        // verified binary is executed with administrator privileges.
+        return "set -eu; updateDir=$(/usr/bin/mktemp -d /private/tmp/quotanest-update.XXXXXX); trap '/bin/rm -rf \"$updateDir\"' EXIT; /usr/bin/install -m 700 " + shellQuote(helper) + " \"$updateDir/helper\"; actual=$(/usr/bin/shasum -a 256 \"$updateDir/helper\"); actual=${actual%% *}; [ \"$actual\" = " + shellQuote(expectedDigest) + " ] || exit 65; \"$updateDir/helper\" --request " + shellQuote(request)
+    }
     static func launch(_ prepared: PreparedUpdate, completion: @escaping (Result<Void,Error>) -> Void) {
         DispatchQueue.global(qos:.userInitiated).async {
             completion(Result {
@@ -12,10 +19,9 @@ enum UpdatePrivilegeLauncher {
                 if prepared.target.isUser {
                     process.executableURL = helper; process.arguments = ["--request",prepared.requestURL.path]
                 } else {
-                    // Source is fixed. All paths travel as argv and AppleScript's
-                    // quoted form escapes them before its mandatory shell bridge.
+                    let command = try privilegedCommand(helper:helper.path,request:prepared.requestURL.path,expectedDigest:prepared.helperDigest)
                     process.executableURL = URL(fileURLWithPath:"/usr/bin/osascript")
-                    process.arguments = ["-e", "on run argv\n do shell script ((quoted form of item 1 of argv) & \" --request \" & (quoted form of item 2 of argv)) with administrator privileges\nend run", helper.path, prepared.requestURL.path]
+                    process.arguments = ["-e", "on run argv\n do shell script (item 1 of argv) with administrator privileges\nend run", command]
                 }
                 process.environment = ["PATH":"/usr/bin:/bin:/usr/sbin:/sbin"]
                 process.standardOutput = FileHandle.nullDevice; process.standardError = FileHandle.nullDevice; process.standardInput = FileHandle.nullDevice

@@ -1,9 +1,12 @@
 import Foundation
 import Darwin
+import CryptoKit
 
-struct PreparedUpdate { let directory: URL; let target: UpdateTarget; let requestURL: URL }
+struct PreparedUpdate { let directory: URL; let target: UpdateTarget; let requestURL: URL; let helperDigest: String }
 final class UpdateInstaller {
     private let queue = DispatchQueue(label:"local.quotanest.update-install")
+    private let helperDigest: String
+    init(helperDigest: String) { self.helperDigest = helperDigest }
     func stage(_ update: VerifiedUpdateDMG, currentVersion: DottedVersion, completion: @escaping (Result<PreparedUpdate,Error>) -> Void) {
         queue.async { completion(Result {
             let directory = update.fileURL.deletingLastPathComponent()
@@ -25,11 +28,13 @@ final class UpdateInstaller {
                 let helper = directory.appendingPathComponent("helper")
                 try FileManager.default.copyItem(at:resource,to:helper)
                 try FileManager.default.setAttributes([.posixPermissions:0o700],ofItemAtPath:helper.path)
+                let helperData = try Data(contentsOf:helper)
+                guard helperData.count <= 2_097_152, SHA256.hash(data:helperData).map({ String(format:"%02x",$0) }).joined() == self.helperDigest else { throw UpdateError("当前应用的更新助手校验失败") }
                 let request = UpdateHelperRequest(parentPID:getpid(),userID:getuid(),homePath:FileManager.default.homeDirectoryForCurrentUser.path,stagePath:directory.path,targetPath:target.url.path,version:update.release.version.text,loginEnabled:LoginItemManager.enabled)
                 let url = directory.appendingPathComponent("request.json")
                 try JSONEncoder().encode(request).write(to:url,options:.atomic)
                 try FileManager.default.setAttributes([.posixPermissions:0o600],ofItemAtPath:url.path)
-                return PreparedUpdate(directory:directory,target:target,requestURL:url)
+                return PreparedUpdate(directory:directory,target:target,requestURL:url,helperDigest:self.helperDigest)
             } catch { UpdatePaths.clean(directory); throw error }
         }) }
     }

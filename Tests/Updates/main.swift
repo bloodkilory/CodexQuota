@@ -99,9 +99,10 @@ try FileManager.default.createSymbolicLink(at:link,withDestinationURL:app)
 rejects("symlink target rejected") { _ = try UpdateTarget.resolve(runningBundle:link,home:home) }
 struct FixtureRunner: UpdateCommandRunning {
     var architectures = "x86_64 arm64"
+    var helperArchitectures = "x86_64 arm64"
     var signed = true
     func run(_ executable: String, arguments: [String], timeout: TimeInterval) throws -> Data {
-        if executable == "/usr/bin/lipo" { return Data(architectures.utf8) }
+        if executable == "/usr/bin/lipo" { return Data((arguments.last?.hasSuffix("quotanest-update-helper") == true ? helperArchitectures : architectures).utf8) }
         if !signed { throw UpdateError("bad signature") }
         return Data()
     }
@@ -111,9 +112,17 @@ func fixtureApp(_ path: URL, id: String = "local.codexquota", version: String = 
     let plist: [String:Any] = ["CFBundleIdentifier":id,"CFBundleExecutable":"QuotaNest","CFBundleShortVersionString":version,"LSMinimumSystemVersion":"13.0"]
     try PropertyListSerialization.data(fromPropertyList:plist,format:.xml,options:0).write(to:path.appendingPathComponent("Contents/Info.plist"))
     for file in ["Contents/MacOS/QuotaNest","Contents/Resources/qoder-usage.cjs","Contents/Resources/quotanest-update-helper","Contents/Resources/AppIcon.icns"] { try Data("fixture".utf8).write(to:path.appendingPathComponent(file)) }
+    for file in ["Contents/MacOS/QuotaNest","Contents/Resources/quotanest-update-helper"] { try FileManager.default.setAttributes([.posixPermissions:0o755],ofItemAtPath:path.appendingPathComponent(file).path) }
 }
 try fixtureApp(app)
 try UpdateBundleValidator.validate(at:app,expectedVersion:release.version,runner:FixtureRunner())
+try FileManager.default.setAttributes([.posixPermissions:0o644],ofItemAtPath:app.appendingPathComponent("Contents/MacOS/QuotaNest").path)
+rejects("non-executable main binary rejected") { try UpdateBundleValidator.validate(at:app,expectedVersion:release.version,runner:FixtureRunner()) }
+try fixtureApp(app)
+try FileManager.default.setAttributes([.posixPermissions:0o644],ofItemAtPath:app.appendingPathComponent("Contents/Resources/quotanest-update-helper").path)
+rejects("non-executable helper rejected") { try UpdateBundleValidator.validate(at:app,expectedVersion:release.version,runner:FixtureRunner()) }
+try fixtureApp(app)
+rejects("helper architecture rejected") { try UpdateBundleValidator.validate(at:app,expectedVersion:release.version,runner:FixtureRunner(helperArchitectures:"x86_64")) }
 rejects("architecture rejected") { try UpdateBundleValidator.validate(at:app,expectedVersion:release.version,runner:FixtureRunner(architectures:"x86_64")) }
 rejects("signature rejected") { try UpdateBundleValidator.validate(at:app,expectedVersion:release.version,runner:FixtureRunner(signed:false)) }
 rejects("bundle version rejected") { try UpdateBundleValidator.validate(at:app,expectedVersion:current,runner:FixtureRunner()) }
@@ -147,3 +156,16 @@ check(!UpdateMenuState.busy("正在下载…").isActionEnabled, "busy prevents d
 check(UpdateMenuState.current("1.7.0").isActionEnabled, "manual recheck available")
 check(UpdatePrivilegeLauncher.shellQuote("a'b") == "'a'\\''b'", "administrator command arguments quoted")
 check(UpdatePrivilegeLauncher.shellQuote("a\n$(touch nope)") == "'a\n$(touch nope)'", "shell metacharacters remain literal")
+
+let helperFile = temp.appendingPathComponent("test helper's binary")
+let marker = temp.appendingPathComponent("helper marker")
+let trustedHelper = Data("#!/bin/sh\nprintf verified > \"$2\"\n".utf8)
+try trustedHelper.write(to:helperFile)
+let trustedDigest = SHA256.hash(data:trustedHelper).map { String(format:"%02x",$0) }.joined()
+let protectedCommand = try UpdatePrivilegeLauncher.privilegedCommand(helper:helperFile.path,request:marker.path,expectedDigest:trustedDigest)
+_ = try UpdateCommandRunner().run("/bin/sh",arguments:["-c",protectedCommand],timeout:15)
+check(try String(contentsOf:marker,encoding:.utf8) == "verified", "protected helper copy executes after digest match")
+try FileManager.default.removeItem(at:marker)
+try Data("#!/bin/sh\nprintf tampered > \"$2\"\n".utf8).write(to:helperFile)
+rejects("tampered privileged helper rejected") { _ = try UpdateCommandRunner().run("/bin/sh",arguments:["-c",protectedCommand],timeout:15) }
+check(!FileManager.default.fileExists(atPath:marker.path), "tampered helper never executed")

@@ -86,8 +86,13 @@ enum UpdateBundleValidator {
             guard try app.appendingPathComponent(path).resourceValues(forKeys:[.isRegularFileKey]).isRegularFile == true else { throw UpdateError("更新应用缺少必要资源") }
         }
         guard try app.appendingPathComponent("Contents/Resources/provider-marks").resourceValues(forKeys:[.isDirectoryKey]).isDirectory == true else { throw UpdateError("更新应用缺少平台标识") }
-        let architectures = String(decoding:try runner.run("/usr/bin/lipo",arguments:["-archs",app.appendingPathComponent("Contents/MacOS/QuotaNest").path],timeout:15),as:UTF8.self).split(whereSeparator: { $0.isWhitespace })
-        guard architectures.contains("arm64"), architectures.contains("x86_64") else { throw UpdateError("更新应用不是通用架构") }
+        for path in ["Contents/MacOS/QuotaNest","Contents/Resources/quotanest-update-helper"] {
+            let executable = app.appendingPathComponent(path)
+            let mode = (try fm.attributesOfItem(atPath:executable.path)[.posixPermissions] as? NSNumber)?.intValue ?? 0
+            guard mode & 0o111 != 0 else { throw UpdateError("更新应用或助手缺少执行权限") }
+            let architectures = String(decoding:try runner.run("/usr/bin/lipo",arguments:["-archs",executable.path],timeout:15),as:UTF8.self).split(whereSeparator: { $0.isWhitespace })
+            guard architectures.contains("arm64"), architectures.contains("x86_64") else { throw UpdateError("更新应用或助手不是通用架构") }
+        }
         _ = try runner.run("/usr/bin/codesign",arguments:["--verify","--deep","--strict",app.path],timeout:30)
     }
 }

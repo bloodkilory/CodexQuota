@@ -13,7 +13,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private let qoderClient = QoderQuotaClient()
     private let codebuddyClient = CodeBuddyQuotaClient()
     private let updateClient = ReleaseUpdateClient()
-    private let updateInstaller = UpdateInstaller()
+    private let updateInstaller = UpdateInstaller(helperDigest:BundledUpdateHelperIdentity.sha256)
     private var updateState = UpdateMenuState.busy("正在检查更新…")
     private var updateRelease: UpdateRelease?
     private var previousUpdateMessage: String?
