@@ -8,6 +8,8 @@ func json(tag: String = "v1.7.0", draft: Bool = false, pre: Bool = false, duplic
     return try! JSONSerialization.data(withJSONObject:["tag_name":tag,"draft":draft,"prerelease":pre,"assets":assets])
 }
 let current = DottedVersion("1.6.0")!
+let prospectivePath = FileManager.default.currentDirectoryPath + "/.build/nonexistent-application.app"
+check(UpdatePaths.samePath(URL(fileURLWithPath:prospectivePath,isDirectory:true),URL(fileURLWithPath:prospectivePath,isDirectory:false)), "file/directory URL hints do not change filesystem identity")
 check(DottedVersion("1.10.0")! > DottedVersion("1.9.9")!, "numeric version order")
 check(DottedVersion("1.7")! == DottedVersion("1.7.0")!, "zero-padded equality")
 for bad in ["", "1..7", "1.7-beta", "-1.0", "1.+7", "1. 7", "9999999999999999999999"] { check(DottedVersion(bad) == nil, "invalid version " + bad) }
@@ -93,6 +95,7 @@ let home = temp.appendingPathComponent("home")
 let app = home.appendingPathComponent("Applications/QuotaNest.app")
 try FileManager.default.createDirectory(at:app,withIntermediateDirectories:true)
 check(try UpdateTarget.resolve(runningBundle:app,home:home).isUser, "user Applications accepted")
+check(try UpdateTarget.resolve(runningBundle:URL(fileURLWithPath:app.path,isDirectory:true),home:home).isUser, "directory URL spelling accepted")
 rejects("arbitrary location rejected") { _ = try UpdateTarget.resolve(runningBundle:temp.appendingPathComponent("QuotaNest.app"),home:home) }
 let link = temp.appendingPathComponent("linked.app")
 try FileManager.default.createSymbolicLink(at:link,withDestinationURL:app)

@@ -2,6 +2,9 @@ import Foundation
 import Darwin
 
 enum UpdatePaths {
+    // Foundation may preserve different file/directory URL hints across macOS
+    // versions. Filesystem identity is the standardized path, not URL spelling.
+    static func samePath(_ a: URL, _ b: URL) -> Bool { a.standardizedFileURL.path == b.standardizedFileURL.path }
     static func rejectLinks(_ url: URL) throws {
         var current = URL(fileURLWithPath:"/",isDirectory:true)
         for component in url.pathComponents.dropFirst() {
@@ -23,7 +26,7 @@ enum UpdatePaths {
         return URL(fileURLWithPath:String(cString:template),isDirectory:true)
     }
     static func clean(_ directory: URL) {
-        guard directory.deletingLastPathComponent().standardizedFileURL == root().standardizedFileURL, directory.lastPathComponent.hasPrefix("stage.") else { return }
+        guard samePath(directory.deletingLastPathComponent(),root()), directory.lastPathComponent.hasPrefix("stage.") else { return }
         try? FileManager.default.removeItem(at:directory)
     }
 }
@@ -33,9 +36,9 @@ struct UpdateTarget {
     static func resolve(runningBundle: URL, home: URL = FileManager.default.homeDirectoryForCurrentUser) throws -> Self {
         let path = runningBundle.standardizedFileURL
         let user = home.appendingPathComponent("Applications/QuotaNest.app").standardizedFileURL
-        guard path == user || path.path == "/Applications/QuotaNest.app" else { throw UpdateError("请将应用安装在 ~/Applications 或 /Applications 后更新") }
+        guard UpdatePaths.samePath(path,user) || path.path == "/Applications/QuotaNest.app" else { throw UpdateError("请将应用安装在 ~/Applications 或 /Applications 后更新") }
         try UpdatePaths.rejectLinks(path)
-        return Self(url:path,isUser:path == user)
+        return Self(url:path,isUser:UpdatePaths.samePath(path,user))
     }
 }
 protocol UpdateCommandRunning {
@@ -110,7 +113,7 @@ struct UpdateHelperRequest: Codable {
     func validate() throws {
         guard userID >= 501, parentPID > 1, let user = getpwuid(userID), homePath == String(cString:user.pointee.pw_dir), DottedVersion(version) != nil else { throw UpdateError("更新请求身份无效") }
         let home = URL(fileURLWithPath:homePath)
-        guard directory.deletingLastPathComponent().standardizedFileURL == UpdatePaths.root(home:home).standardizedFileURL, directory.lastPathComponent.hasPrefix("stage."), directory.path == stagePath else { throw UpdateError("更新暂存路径无效") }
+        guard UpdatePaths.samePath(directory.deletingLastPathComponent(),UpdatePaths.root(home:home)), directory.lastPathComponent.hasPrefix("stage."), directory.path == stagePath else { throw UpdateError("更新暂存路径无效") }
         try UpdatePaths.rejectLinks(directory)
         let attributes = try FileManager.default.attributesOfItem(atPath:directory.path)
         guard (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == userID, (attributes[.posixPermissions] as? NSNumber)?.intValue == 0o700 else { throw UpdateError("更新暂存权限无效") }
@@ -122,7 +125,7 @@ struct UpdateHelperRequest: Codable {
         let attributes = try FileManager.default.attributesOfItem(atPath:url.path)
         guard attributes[.type] as? FileAttributeType == .typeRegular, (attributes[.size] as? NSNumber)?.intValue ?? Int.max < 16384, (attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600 else { throw UpdateError("更新请求文件无效") }
         let request = try JSONDecoder().decode(Self.self,from:Data(contentsOf:url))
-        guard url.standardizedFileURL == request.directory.appendingPathComponent("request.json").standardizedFileURL, (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == request.userID else { throw UpdateError("更新请求路径或所有者无效") }
+        guard UpdatePaths.samePath(url,request.directory.appendingPathComponent("request.json")), (attributes[.ownerAccountID] as? NSNumber)?.uint32Value == request.userID else { throw UpdateError("更新请求路径或所有者无效") }
         try request.validate(); return request
     }
 }

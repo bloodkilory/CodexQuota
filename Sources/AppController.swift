@@ -139,7 +139,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func readPreviousUpdateStatus() {
         guard let path = UserDefaults.standard.string(forKey:"pendingUpdateDirectory") else { return }
         let directory = URL(fileURLWithPath:path)
-        guard directory.deletingLastPathComponent().standardizedFileURL == UpdatePaths.root().standardizedFileURL, directory.lastPathComponent.hasPrefix("stage.") else { return }
+        guard UpdatePaths.samePath(directory.deletingLastPathComponent(),UpdatePaths.root()), directory.lastPathComponent.hasPrefix("stage.") else { return }
         if let data = try? Data(contentsOf:directory.appendingPathComponent("status.json")), data.count <= 16384,
            let status = try? JSONDecoder().decode(UpdateInstallStatus.self,from:data), ["failed","installed"].contains(status.state) {
             previousUpdateMessage = status.message
