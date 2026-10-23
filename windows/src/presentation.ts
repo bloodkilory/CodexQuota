@@ -38,7 +38,7 @@ const copy:Record<string,[string,string]>={
 };
 export function isChinese(s:Snapshot):boolean {return s.preferences.language==='zh' || (s.preferences.language==='system' && (typeof navigator!=='undefined' && navigator.language.startsWith('zh')));}
 export function text(s:Snapshot,key:string):string {return copy[key]?.[isChinese(s)?1:0]??copy.http_error[isChinese(s)?1:0];}
-export function modelLabel(s:Snapshot,value:string):string {return value==='claude'?text(s,'claudeGroup'):value==='sonnet'?'Sonnet':value==='opus'?'Opus':value;}
+export function modelLabel(s:Snapshot,value:string):string {return value==='codex'?'Codex':value==='claude'?text(s,'claudeGroup'):value==='sonnet'?'Sonnet':value==='opus'?'Opus':value;}
 export function modelChoices(s:Snapshot):{value:string;label:string}[] {
  const data=s.reading.data;
  if(data?.kind!=='quota')return [];
@@ -51,7 +51,7 @@ export function selectedModel(s:Snapshot):string {
 }
 function modelWindows(s:Snapshot):Quota['windows'] {
  const data=s.reading.data;const model=selectedModel(s);
- return data?.kind==='quota'?data.value.windows.filter(w=>!model||w.label===model):[];
+ return data?.kind==='quota'?data.value.windows.filter(w=>model?w.label===model:w.remaining!=null&&(s.preferences.source!=='codex'||!w.label||w.label==='codex')):[];
 }
 export function displayChoices(s:Snapshot):{value:string;label:string}[] {
  const data=s.reading.data;
@@ -75,5 +75,5 @@ export function present(s:Snapshot) {
  return {name:s.preferences.source==='codex'?'Codex':s.preferences.source==='claude'?'Claude':c?.name||'DeepSeek',amount,selected,model:selectedModel(s),quotaWindow,stale:!!s.reading.error && !!data,updated:s.reading.updated};
 }
 export function demoSnapshot(source='api:claude|demo'):Snapshot {
- return {preferences:{source,language:'en',directory:'C:\\Users\\Demo\\.cc-switch',autostart:false},connections:[{id:'claude|demo',name:'DeepSeek',harness:'claude',origin:'https://api.deepseek.com',supported:true}],reading:{data:source==='claude'?{kind:'quota',value:{plan:'Max',windows:[{label:'claude',remaining:82,minutes:300,resetsAt:1792792800},{label:'claude',remaining:61,minutes:10080,resetsAt:null},{label:'sonnet',remaining:93,minutes:10080,resetsAt:null},{label:'opus',remaining:39,minutes:10080,resetsAt:null}]}}:source==='codex'?{kind:'quota',value:{plan:'Plus',windows:[{remaining:76,minutes:300,resetsAt:1792749600},{remaining:62,minutes:10080,resetsAt:1793318400}]}}:{kind:'balance',value:[{currency:'CNY',total:'18.60',granted:'3.60',toppedUp:'15.00'},{currency:'USD',total:'3.20',granted:'0.20',toppedUp:'3.00'}]},updated:1792731600,error:null,refreshing:false},discoveryError:null,update:null,updateStatus:'idle'};
+ return {preferences:{source,language:'en',directory:'C:\\Users\\Demo\\.cc-switch',autostart:false},connections:[{id:'claude|demo',name:'DeepSeek',harness:'claude',origin:'https://api.deepseek.com',supported:true}],reading:{data:source==='claude'?{kind:'quota',value:{plan:'Max',windows:[{label:'claude',remaining:82,minutes:300,resetsAt:1792792800},{label:'claude',remaining:61,minutes:10080,resetsAt:null},{label:'sonnet',remaining:93,minutes:10080,resetsAt:null},{label:'opus',remaining:39,minutes:10080,resetsAt:null}]}}:source==='codex'?{kind:'quota',value:{plan:'Plus',windows:[{label:'codex',remaining:76,minutes:300,resetsAt:1792749600},{label:'codex',remaining:62,minutes:10080,resetsAt:1793318400},{label:'codex-spark',remaining:91,minutes:10080,resetsAt:1793354400},{label:'external-model',remaining:null,minutes:300,resetsAt:null}]}}:{kind:'balance',value:[{currency:'CNY',total:'18.60',granted:'3.60',toppedUp:'15.00'},{currency:'USD',total:'3.20',granted:'0.20',toppedUp:'3.00'}]},updated:1792731600,error:null,refreshing:false},discoveryError:null,update:null,updateStatus:'idle'};
 }

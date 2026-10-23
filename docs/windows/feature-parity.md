@@ -6,7 +6,7 @@ Compared against Mac v1.8.0 (`37bdf5f`) and Windows v1.9.0-beta.5. “Implemente
 
 | Feature / 功能 | Mac | Windows beta.5 | Result / 差异 |
 | --- | --- | --- | --- |
-| Codex official main quota / 官方主额度 | Yes | Yes, native codex.exe | Same main-bucket semantics; Windows detailed secondary model buckets not yet displayed / 主额度一致，Windows 尚未展示额外模型桶 |
+| Codex official model quotas / 官方模型额度 | Yes | Yes, native codex.exe | All returned model buckets are selectable; Automatic keeps main quota / 全部返回模型可选，自动保留主额度口径 |
 | Claude official subscription / 官方套餐 | Yes | Added | Existing subscription OAuth; 5h, 7d, Sonnet, Opus; reset time / 本轮新增各额度组、重置时间 |
 | Claude credentials / 登录读取 | File or macOS Keychain | Native `.credentials.json`; absolute `CLAUDE_CONFIG_DIR` supported | Platform storage differs; no API key/helper/refresh-token execution / 存储方式随平台不同，不代替官方客户端更新登录 |
 | CC Switch saved connections | Schema 18–20, read-only | Same | Claude Code/Codex connections; fixed official DeepSeek endpoint / 同一数据范围与固定余额端点 |

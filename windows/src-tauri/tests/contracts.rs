@@ -158,10 +158,11 @@ fn executable_discovery_handles_current_npm_packages_and_never_runs_cmd_shims() 
 fn legacy_main_quota_wins_over_other_model_limits() {
     let reading=models::parse_codex(&json!({"rateLimits":{"primary":{"usedPercent":10}},"rateLimitsByLimitId":{"codex-spark":{"primary":{"usedPercent":99}}}})).unwrap();
     assert_eq!(reading.windows[0].remaining, Some(90.0));
-    assert!(models::parse_codex(
-        &json!({"rateLimitsByLimitId":{"other-model":{"primary":{"usedPercent":99}}}})
+    let other = models::parse_codex(
+        &json!({"rateLimitsByLimitId":{"other-model":{"primary":{"usedPercent":99}}}}),
     )
-    .is_err());
+    .unwrap();
+    assert_eq!(other.windows[0].label.as_deref(), Some("other-model"));
 }
 #[test]
 fn changed_credentials_clear_previous_rate_limit_and_allow_local_validation() {
@@ -234,4 +235,48 @@ fn fresh_rate_limit_survives_post_response_database_busy() {
     service.finish(request, Err(models::AppError::new("source_busy")));
     assert!(service.validate_credential("same-generation").is_some());
     assert!(service.validate_credential("new-generation").is_none());
+}
+
+#[test]
+fn codex_models_remain_selectable_without_changing_automatic_main_quota() {
+    use quotanest_windows::service::{Data, Preferences, Service};
+    let dir = tempfile::tempdir().unwrap();
+    let mut service = Service::new(Preferences::defaults(dir.path()));
+    let quota=models::parse_codex(&json!({"rateLimitsByLimitId":{"codex":{"primary":{"usedPercent":24,"windowDurationMins":300}},"codex-spark":{"primary":{"usedPercent":7,"windowDurationMins":10080,"resetsAt":333}},"external-model":{"primary":{"usedPercent":null,"windowDurationMins":300}}}})).unwrap();
+    assert_eq!(quota.windows.len(), 3);
+    service.state.reading.data = Some(Data::Quota(quota.clone()));
+    assert_eq!(service.display_amount(), "76%");
+    service.select_model("codex-spark").unwrap();
+    assert_eq!(service.display_amount(), "93%");
+    assert_eq!(service.display_window().unwrap().resets_at, Some(333.));
+    service.select_model("external-model").unwrap();
+    assert_eq!(service.display_amount(), "—");
+    service.select_model("").unwrap();
+    let mut reordered = quota;
+    reordered.windows.reverse();
+    service.state.reading.data = Some(Data::Quota(reordered));
+    assert_eq!(service.display_amount(), "76%");
+}
+#[test]
+fn legacy_main_and_additional_codex_models_coexist() {
+    use quotanest_windows::service::{Data, Preferences, Service};
+    let dir = tempfile::tempdir().unwrap();
+    let mut service = Service::new(Preferences::defaults(dir.path()));
+    let quota=models::parse_codex(&json!({"rateLimits":{"primary":{"usedPercent":10,"windowDurationMins":300}},"rateLimitsByLimitId":{"codex-spark":{"primary":{"usedPercent":99,"windowDurationMins":300}}}})).unwrap();
+    assert_eq!(quota.windows.len(), 2);
+    service.state.reading.data = Some(Data::Quota(quota));
+    assert_eq!(service.display_amount(), "90%");
+    service.select_model("codex-spark").unwrap();
+    assert_eq!(service.display_amount(), "1%");
+}
+
+#[test]
+fn codex_automatic_does_not_borrow_a_model_when_main_is_absent() {
+    use quotanest_windows::service::{Data, Preferences, Service};
+    let dir = tempfile::tempdir().unwrap();
+    let mut service = Service::new(Preferences::defaults(dir.path()));
+    service.state.reading.data=Some(Data::Quota(models::parse_codex(&json!({"rateLimitsByLimitId":{"other-model":{"primary":{"usedPercent":99,"windowDurationMins":300}}}})).unwrap()));
+    assert_eq!(service.display_amount(), "—");
+    service.select_model("other-model").unwrap();
+    assert_eq!(service.display_amount(), "1%");
 }

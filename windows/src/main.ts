@@ -42,7 +42,7 @@ function renderHover(){
  const data=snapshot.reading.data;
  if(data?.kind==='quota')for(const w of data.value.windows){
   const row=element('section',undefined,'hover-row');const line=element('div',undefined,'hover-line');
-  const name=w.label&&w.label!=='claude'?label(w.label):w.minutes?periodLabel(w.minutes):label('window');
+  const name=w.label&&w.label!=='claude'&&w.label!=='codex'?(['sonnet','opus'].includes(w.label)?label(w.label):modelLabel(snapshot,w.label)):w.minutes?periodLabel(w.minutes):label('window');
   line.append(element('span',name));
   const progress=element('progress');progress.max=100;progress.value=w.remaining??0;progress.setAttribute('aria-label',name);
   if(w.remaining==null){progress.className='unknown';progress.setAttribute('aria-hidden','true');}line.append(progress,element('strong',w.remaining==null?'—':`${w.remaining.toFixed(0)}%`));row.append(line);
@@ -113,7 +113,7 @@ function render(){
   }
   if(snapshot.reading.data?.kind==='quota')for(const quota of snapshot.reading.data.value.windows){
    const window=element('div',undefined,'quota-window');const period=quota.minutes?periodLabel(quota.minutes):label('window');
-   if(quota.label)window.append(element('h3',label(quota.label==='claude'?'claudeGroup':quota.label)));
+   if(quota.label)window.append(element('h3',['sonnet','opus'].includes(quota.label)?label(quota.label):modelLabel(snapshot,quota.label)));
    window.append(element('p',`${period} · ${quota.remaining==null?'—':`${quota.remaining.toFixed(1)}% ${label('remaining')}`}`));
    if(quota.remaining!=null){const meter=element('progress');meter.max=100;meter.value=quota.remaining;meter.setAttribute('aria-label',period);window.append(meter);}
    if(quota.resetsAt)window.append(element('p',`${label('reset')}: ${new Date(quota.resetsAt*1000).toLocaleString(document.documentElement.lang)}`,'muted'));card.append(window);
@@ -132,7 +132,7 @@ function render(){
 async function syncAfter(){snapshot=await command<Snapshot>('snapshot');}
 async function start(){if(native){try{snapshot=await command<Snapshot>('snapshot');}catch{localError='http_error';}}render();setInterval(()=>void sync().catch(()=>{}),1000);}
 if(native){
- void listen('open-settings',()=>void run(async()=>{snapshot=await command<Snapshot>('snapshot');settings=true;preferencesEditing=true;}).then(()=>{root.scrollTop=0;document.getElementById('close')?.focus({preventScroll:true});}));
+ if(!hover)void listen('open-settings',()=>void run(async()=>{snapshot=await command<Snapshot>('snapshot');settings=true;preferencesEditing=true;}).then(()=>{root.scrollTop=0;document.getElementById('close')?.focus({preventScroll:true});}));
  void listen('snapshot-changed',()=>{if(hover)void sync().catch(()=>{});});
 }
 void start();

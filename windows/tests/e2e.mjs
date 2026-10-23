@@ -44,6 +44,17 @@ try{
  await select('#source','codex');
  await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/76%/));
  await screenshot('windows-codex-en');
+ await click('#model-codex-spark');
+ await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'91%'));
+ assert.match(await execute('return document.querySelector(".selected-reading").textContent'),/codex-spark · 7d/);
+ assert.ok((await execute('return [...document.querySelectorAll(".quota-window h3")].map(n=>n.textContent)')).includes('external-model'));
+ await screenshot('windows-model-codex-spark');
+ await click('#model-external-model');
+ await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'—'));
+ const unknownTray=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");
+ assert.equal(unknownTray.displayAmount,'—');assert.equal(unknownTray.selectedModel,'external-model');assert.equal(unknownTray.displayWindow.remaining,null);
+ await screenshot('windows-model-unknown');
+ await click('#model-auto');await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'76%'));
  await select('#display','10080');
  await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/62%/));
  await select('#source','claude');
@@ -138,7 +149,7 @@ try{
   compactChecked=true;break;
  }
  assert.ok(compactChecked,'compact hover WebView was checked');
- await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','model-radio-mouse-selection','model-period-fallback','model-refresh-retained','model-source-retained','model-tray-reading','settings-back-model-selection','period-selection-retained','currency-selection','language-switch','settings-update-check','native-tray-hover','hover-preserves-focus','hover-card-retention','tray-click-settings'],credentials:'synthetic only'},null,2));
+ await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','model-radio-mouse-selection','codex-model-map-selection','unknown-model-no-borrow','model-period-fallback','model-refresh-retained','model-source-retained','model-tray-reading','settings-back-model-selection','period-selection-retained','currency-selection','language-switch','settings-update-check','native-tray-hover','hover-preserves-focus','hover-card-retention','tray-click-settings'],credentials:'synthetic only'},null,2));
  console.log('PASS native Windows WebView2 GUI: source switch, language, balances, quotas, settings');
 }catch(error){spawnSync('powershell.exe',['-NoProfile','-File','scripts/capture-diagnostics.ps1'],{stdio:'inherit'});if(session)await screenshot('failure').catch(()=>{});throw error;}
 finally{if(session)await request('DELETE',`/session/${session}`).catch(()=>{});driver.kill();app.kill();spawnSync('taskkill.exe',['/IM','QuotaNest.exe','/T','/F'],{windowsHide:true});await writeFile(path.join(resultDir,'native-app.log'),appLog);await writeFile(path.join(resultDir,'driver.log'),log);}

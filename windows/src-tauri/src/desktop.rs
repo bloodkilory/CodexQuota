@@ -48,7 +48,7 @@ impl Backend {
 }
 fn demo_data(source: &str) -> Data {
     if source == "codex" {
-        Data::Quota(crate::models::parse_codex(&serde_json::json!({"rateLimits":{"planType":"Plus","primary":{"usedPercent":24,"windowDurationMins":300},"secondary":{"usedPercent":38,"windowDurationMins":10080}}})).unwrap())
+        Data::Quota(crate::models::parse_codex(&serde_json::json!({"rateLimitsByLimitId":{"codex":{"planType":"Plus","primary":{"usedPercent":24,"windowDurationMins":300},"secondary":{"usedPercent":38,"windowDurationMins":10080}},"codex-spark":{"primary":{"usedPercent":9,"windowDurationMins":10080,"resetsAt":1793354400}},"external-model":{"primary":{"usedPercent":null,"windowDurationMins":300}}}})).unwrap())
     } else if source == "claude" {
         Data::Quota(crate::models::parse_claude(&serde_json::json!({"five_hour":{"utilization":18,"resets_at":"2026-10-23T20:00:00Z"},"seven_day":{"utilization":39},"seven_day_sonnet":{"utilization":7},"seven_day_opus":{"utilization":61}})).unwrap())
     } else {

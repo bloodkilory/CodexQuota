@@ -88,29 +88,40 @@ pub fn parse_balance(root: &Value) -> Result<Vec<Wallet>, AppError> {
 }
 pub fn parse_codex(root: &Value) -> Result<Quota, AppError> {
     let map = root["rateLimitsByLimitId"].as_object();
-    let bucket = map
+    let main = map
         .and_then(|m| m.get("codex"))
-        .or_else(|| root.get("rateLimits"))
         .filter(|v| v.is_object())
-        .ok_or_else(|| AppError::new("invalid_quota"))?;
-    let windows = ["primary", "secondary"]
+        .or_else(|| root.get("rateLimits").filter(|v| v.is_object()));
+    let mut buckets = main.map(|v| vec![("codex", v)]).unwrap_or_default();
+    if let Some(map) = map {
+        buckets.extend(
+            map.iter()
+                .filter(|(key, value)| key.as_str() != "codex" && value.is_object())
+                .map(|(key, value)| (key.as_str(), value)),
+        );
+    }
+    let windows = buckets
         .iter()
-        .filter_map(|key| bucket.get(key).filter(|v| v.is_object()))
-        .map(|v| QuotaWindow {
-            label: None,
-            remaining: v["usedPercent"]
-                .as_f64()
-                .filter(|n| n.is_finite())
-                .map(|n| (100.0 - n).clamp(0.0, 100.0)),
-            minutes: v["windowDurationMins"].as_u64(),
-            resets_at: v["resetsAt"].as_f64().filter(|v| v.is_finite()),
+        .flat_map(|(label, bucket)| {
+            ["primary", "secondary"]
+                .into_iter()
+                .filter_map(|key| bucket.get(key).filter(|v| v.is_object()))
+                .map(|v| QuotaWindow {
+                    label: Some((*label).into()),
+                    remaining: v["usedPercent"]
+                        .as_f64()
+                        .filter(|n| n.is_finite())
+                        .map(|n| (100.0 - n).clamp(0.0, 100.0)),
+                    minutes: v["windowDurationMins"].as_u64(),
+                    resets_at: v["resetsAt"].as_f64().filter(|v| v.is_finite()),
+                })
         })
         .collect::<Vec<_>>();
     if windows.is_empty() {
         return Err(AppError::new("invalid_quota"));
     }
     Ok(Quota {
-        plan: bucket["planType"].as_str().map(str::to_owned),
+        plan: main.and_then(|v| v["planType"].as_str()).map(str::to_owned),
         windows,
     })
 }

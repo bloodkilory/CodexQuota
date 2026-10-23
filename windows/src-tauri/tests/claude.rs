@@ -231,3 +231,22 @@ fn unknown_model_payload_does_not_fall_back_to_another_model() {
         Some(1793354400.)
     );
 }
+
+#[test]
+fn automatic_skips_unknown_period_but_explicit_model_keeps_it() {
+    use quotanest_windows::service::{Data, Preferences, Service};
+    let dir = tempfile::tempdir().unwrap();
+    let mut service = Service::new(Preferences::defaults(dir.path()));
+    service.select("claude").unwrap();
+    service.state.reading.data = Some(Data::Quota(
+        models::parse_claude(
+            &json!({"five_hour":{"utilization":null},"seven_day":{"utilization":39}}),
+        )
+        .unwrap(),
+    ));
+    assert_eq!(service.display_amount(), "61%");
+    assert_eq!(service.display_window().unwrap().minutes, Some(10080));
+    service.select_model("claude").unwrap();
+    assert_eq!(service.display_amount(), "—");
+    assert_eq!(service.display_window().unwrap().minutes, Some(300));
+}

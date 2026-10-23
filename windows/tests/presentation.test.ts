@@ -71,3 +71,20 @@ test('radio options use stable model identity and periods belong to selected mod
  s.preferences.model={claude:'missing'};assert.equal(present(s).model,'');
  assert.deepEqual(displayChoices(s).map(c=>c.value),['300','10080']);
 });
+
+test('Codex automatic stays on main while explicit external models are independent',()=>{
+ const s=demoSnapshot('codex');s.reading.data={kind:'quota',value:{plan:'Plus',windows:[{label:'codex-spark',remaining:93,minutes:10080,resetsAt:333},{label:'codex',remaining:76,minutes:300,resetsAt:111},{label:'external-model',remaining:null,minutes:300,resetsAt:222}]}};
+ assert.equal(present(s).amount,'76%');
+ s.preferences.display={codex:'10080'};assert.equal(present(s).amount,'76%');
+ s.preferences.model={codex:'codex-spark'};
+ assert.equal(present(s).amount,'93%');assert.equal(present(s).quotaWindow?.resetsAt,333);
+ assert.ok(modelChoices(s).some(c=>c.value==='external-model'&&c.label==='external-model'));
+ s.preferences.model={codex:'external-model'};assert.equal(present(s).amount,'—');
+ s.preferences.model={codex:'gone'};assert.equal(present(s).amount,'76%');
+});
+test('automatic periods skip unknown usage while explicit model remains unknown',()=>{
+ const s=demoSnapshot('claude');s.reading.data={kind:'quota',value:{plan:null,windows:[{label:'claude',remaining:null,minutes:300,resetsAt:111},{label:'claude',remaining:61,minutes:10080,resetsAt:222}]}};
+ assert.equal(present(s).amount,'61%');assert.equal(present(s).selected,'10080');
+ s.preferences.model={claude:'claude'};
+ assert.equal(present(s).amount,'—');assert.equal(present(s).selected,'300');
+});

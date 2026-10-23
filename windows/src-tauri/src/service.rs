@@ -134,7 +134,15 @@ impl Service {
             Some(Data::Quota(q)) => q
                 .windows
                 .iter()
-                .filter(|w| selected.is_none() || w.label.as_deref() == selected)
+                .filter(|w| match selected {
+                    Some(model) => w.label.as_deref() == Some(model),
+                    None => {
+                        w.remaining.is_some()
+                            && (self.state.preferences.source != "codex"
+                                || w.label.is_none()
+                                || w.label.as_deref() == Some("codex"))
+                    }
+                })
                 .collect(),
             _ => vec![],
         }
