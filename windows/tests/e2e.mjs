@@ -1,7 +1,7 @@
 // Real Tauri/WebView2 GUI checks through the standard WebDriver HTTP protocol.
 // The --demo application argument keeps this suite independent of user credentials.
 import {spawn,spawnSync} from 'node:child_process';
-import {mkdir,writeFile,mkdtemp} from 'node:fs/promises';
+import {mkdir,writeFile,mkdtemp,readFile} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import assert from 'node:assert/strict';
@@ -28,6 +28,12 @@ try{
  await wait(()=>request('GET','/status'));
  await wait(async()=>{const r=await fetch('http://127.0.0.1:9222/json/version',{signal:AbortSignal.timeout(1000)});assert.equal(r.status,200);});
  const created=await request('POST','/session',{capabilities:{alwaysMatch:{browserName:'webview2','ms:edgeOptions':{debuggerAddress:'127.0.0.1:9222'}}}});session=created.sessionId;
+ await wait(async()=>{
+  const handles=await request('GET',`/session/${session}/window/handles`);
+  for(const handle of handles){await request('POST',`/session/${session}/window`,{handle});if(await execute('return !!document.querySelector("#back")'))return;}
+  throw new Error('Main controls WebView not ready');
+ });
+ await wait(()=>find('#back'));await click('#back');
  await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/18.60/));
  // Exercise IPC reads while the worker updates the native tray.
  for(let n=0;n<10;n++){await click('#refresh');await new Promise(r=>setTimeout(r,150));await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/18.60/));}
@@ -65,7 +71,26 @@ try{
  await click('#settings');await click('#check-update');
  await wait(async()=>assert.match(await execute('return document.body.innerText'),/暂无更新的 Windows 正式版/));
  await screenshot('windows-settings-zh');
- await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','period-selection-retained','currency-selection','language-switch','settings-update-check'],credentials:'synthetic only'},null,2));
+ // Exercise the actual native notification icon with real Windows pointer input.
+ await execute("return window.__TAURI_INTERNALS__.invoke('select_source',{source:'claude'})");
+ await execute("return window.__TAURI_INTERNALS__.invoke('select_display',{value:'300'})");
+ await execute("return window.__TAURI_INTERNALS__.invoke('hide_controls')");
+ function native(mode,options={}){const args=['-NoProfile','-File','scripts/native-tray.ps1','-Mode',mode];for(const [k,v] of Object.entries(options))args.push(`-${k}`,String(v));const r=spawnSync('powershell.exe',args,{encoding:'utf8',windowsHide:true});if(r.status!==0)throw new Error(r.stderr||r.stdout);}
+ native('Prepare');const rect=JSON.parse((await readFile(path.join(resultDir,'native-tray-rect.json'),'utf8')).replace(/^\uFEFF/,''));
+ native('Move',{X:rect.x+rect.w/2,Y:rect.y+rect.h/2});
+ let bounds=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");assert.equal(bounds.visible,true,'hover card should appear');
+ const left=Math.min(bounds.card.x,rect.x)-8,top=Math.min(bounds.card.y,rect.y)-8;
+ native('Capture',{X:left,Y:top,W:Math.max(bounds.card.x+bounds.card.w,rect.x+rect.w)-left+8,H:Math.max(bounds.card.y+bounds.card.h,rect.y+rect.h)-top+8,Name:'windows-tray-claude'});
+ native('Capture',{X:rect.x,Y:rect.y,W:rect.w,H:rect.h,Name:'windows-tray-icon'});
+ const focus=JSON.parse((await readFile(path.join(resultDir,'native-focus.json'),'utf8')).replace(/^\uFEFF/,''));assert.notEqual(focus.foreground,'QuotaNest Usage','hover must not steal focus');
+ native('Move',{X:bounds.card.x+bounds.card.w/2,Y:bounds.card.y+80});
+ assert.equal((await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")).visible,true,'moving into card keeps it visible');
+ native('Move',{X:100,Y:100});
+ assert.equal((await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")).visible,false,'moving away dismisses card');
+ native('Click',{X:rect.x+rect.w/2,Y:rect.y+rect.h/2});
+ await wait(()=>find('#language'));assert.equal((await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")).visible,false);
+ await screenshot('windows-tray-click-settings');
+ await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','period-selection-retained','currency-selection','language-switch','settings-update-check','native-tray-hover','hover-preserves-focus','hover-card-retention','tray-click-settings'],credentials:'synthetic only'},null,2));
  console.log('PASS native Windows WebView2 GUI: source switch, language, balances, quotas, settings');
 }catch(error){spawnSync('powershell.exe',['-NoProfile','-File','scripts/capture-diagnostics.ps1'],{stdio:'inherit'});if(session)await screenshot('failure').catch(()=>{});throw error;}
 finally{if(session)await request('DELETE',`/session/${session}`).catch(()=>{});driver.kill();app.kill();await writeFile(path.join(resultDir,'native-app.log'),appLog);await writeFile(path.join(resultDir,'driver.log'),log);}

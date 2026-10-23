@@ -7,6 +7,8 @@ export interface Connection {id:string;name:string;harness:string;origin:string;
 export interface Preferences {source:string;language:string;directory:string;autostart:boolean;display?:Record<string,string>}
 export interface Snapshot {preferences:Preferences;connections:Connection[];reading:Reading;discoveryError:AppError|null;update:{version:string;name:string;url:string;checksumUrl:string}|null;updateStatus:string}
 const copy:Record<string,[string,string]>={
+ subscription:['Subscription quota','套餐余量'],
+ close:['Close','关闭'],
  title:['QuotaNest','余度 QuotaNest'], beta:['Windows beta','Windows 内测版'], source:['Display source','显示来源'],
  claude:['Claude · Subscription quota','Claude · 套餐余量'],claudeGroup:['Claude subscription','Claude 总额度'],sonnet:['Sonnet weekly','Sonnet 周额度'],opus:['Opus weekly','Opus 周额度'],trayDisplay:['Tray reading','托盘读数'],plan:['Plan','套餐'],
  codex:['Codex · Subscription quota','Codex · 套餐余量'], api:['API balance','API 余额'], configuration:['Saved configuration, not observed session routing','已保存配置，不代表当前会话实际路由'],

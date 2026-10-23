@@ -1,8 +1,8 @@
 # Windows / macOS feature parity · 功能核对
 
-Compared against Mac v1.8.0 (`37bdf5f`) and Windows v1.9.0-beta.2. “Implemented” means code plus synthetic automated tests; it does not certify real Windows accounts. Mac source/build/release workflow is unchanged.
+Compared against Mac v1.8.0 (`37bdf5f`) and Windows v1.9.0-beta.3. “Implemented” means code plus synthetic automated tests; it does not certify real Windows accounts. Mac source/build/release workflow is unchanged.
 
-核对基准：Mac v1.8.0 与 Windows v1.9.0-beta.2。已实现与真实账号验收分开；本轮保持 Mac 版源代码和发布流程不变。
+核对基准：Mac v1.8.0 与 Windows v1.9.0-beta.3。已实现与真实账号验收分开；本轮保持 Mac 版源代码和发布流程不变。
 
 | Feature / 功能 | Mac | Windows beta.2 | Result / 差异 |
 | --- | --- | --- | --- |
@@ -19,7 +19,7 @@ Compared against Mac v1.8.0 (`37bdf5f`) and Windows v1.9.0-beta.2. “Implemente
 | Concurrent fetch | Per-provider coordinator | One global worker | Source switch queues new source after bounded previous request / Windows 旧请求完成后立即查询新来源 |
 | 中英 / English / system language | Yes | Yes | Tray menu uses bilingual labels; detail/settings switch language / Windows 托盘菜单部分使用双语标签 |
 | Glass appearance | macOS material; native glass SDK branch | WebView CSS glass | Similar visual language; Windows does not implement macOS Liquid Glass / 平台材质不同 |
-| Compact always-visible value | 64-point menu-bar capsule | Tray icon + tooltip; detail window | Windows icon does not show the full numeric capsule / Windows 数字显示在悬浮提示与详情 |
+| Compact always-visible value | 64-point menu-bar capsule | Dynamic numeric ring icon; hover usage; click controls | Windows uses a compact numeric icon and hover card, no desktop capsule / Windows 使用数字环形托盘和悬停卡片 |
 | Launch at sign-in | macOS login item | Per-user HKCU Run | Windows installer update preserves preference and Run entry / 按平台实现，升级保留 |
 | App updates | Formal GitHub Release + DMG + SHA256; admin if needed | Formal GitHub Release + EXE + SHA256; per-user NSIS | Startup/click checks only; no beta auto-update feed / 内测附件不作为正式更新推送 |
 | Local status diagnostic file | `status.json` | Not implemented | Windows CI keeps fixture evidence only / 尚未提供用户诊断文件 |

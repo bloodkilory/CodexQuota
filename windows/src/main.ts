@@ -1,8 +1,11 @@
 import {invoke} from '@tauri-apps/api/core';
+import {getCurrentWindow} from '@tauri-apps/api/window';
+import {listen} from '@tauri-apps/api/event';
 import {demoSnapshot,isChinese,present,text,displayChoices,periodLabel,type Snapshot} from './presentation';
 import './style.css';
 const native=!!(window as unknown as {__TAURI_INTERNALS__?:unknown}).__TAURI_INTERNALS__;
-let snapshot=demoSnapshot();let settings=false;let pending=false;let localError='';let preferencesEditing=false;
+const hover=native?getCurrentWindow().label==='hover':location.hash==='#hover';
+let snapshot=demoSnapshot();let settings=native&&!hover;let pending=false;let localError='';let preferencesEditing=settings;
 const root=document.querySelector<HTMLDivElement>('#app')!;
 function element<K extends keyof HTMLElementTagNameMap>(tag:K,value?:string,cls?:string):HTMLElementTagNameMap[K] {
  const node=document.createElement(tag);if(value!==undefined)node.textContent=value;if(cls)node.className=cls;return node;
@@ -23,14 +26,43 @@ function languageSelect(){
  for(const [value,title] of [['system',label('system')],['en','English'],['zh','中文']]){const option=element('option',title);option.value=value;select.append(option);}
  select.value=snapshot.preferences.language;return select;
 }
+function sourcePicker(shell:HTMLElement){
+ const sourceLabel=element('label',label('source'));sourceLabel.htmlFor='source';const select=element('select');select.id='source';
+ for(const key of ['codex','claude']){const option=element('option',label(key));option.value=key;select.append(option);}
+ for(const c of snapshot.connections){const option=element('option',`${c.name||'DeepSeek'} · ${c.harness==='claude'?'Claude Code':'Codex'}${c.supported?'':` · ${label('unsupported')}`}`);option.value=`api:${c.id}`;option.disabled=!c.supported;select.append(option);}
+ if(!Array.from(select.options).some(o=>o.value===snapshot.preferences.source)){const option=element('option',label('source_missing'));option.value=snapshot.preferences.source;select.append(option);}
+ select.value=snapshot.preferences.source;select.onchange=()=>void run(()=>selectSource(select.value));shell.append(sourceLabel,select);
+}
+function renderHover(){
+ const view=present(snapshot);const shell=element('main',undefined,'hover-shell');const head=element('header');
+ const title=element('div');title.append(element('span',view.name,'hover-name'),element('p',snapshot.preferences.source.startsWith('api:')?label('api'):label('subscription'),'muted'));
+ head.append(title,element('span',view.selected&&/^\d+$/.test(view.selected)?periodLabel(Number(view.selected)):view.selected||'','period-badge'));shell.append(head);
+ const amount=element('div',view.amount,'hover-amount');shell.append(amount);
+ const data=snapshot.reading.data;
+ if(data?.kind==='quota')for(const w of data.value.windows){
+  const row=element('section',undefined,'hover-row');const line=element('div',undefined,'hover-line');
+  const name=w.label&&w.label!=='claude'?label(w.label):w.minutes?periodLabel(w.minutes):label('window');
+  line.append(element('span',name),element('strong',w.remaining==null?'—':`${w.remaining.toFixed(0)}%`));row.append(line);
+  if(w.remaining!=null){const progress=element('progress');progress.max=100;progress.value=w.remaining;row.append(progress);}
+  if(w.resetsAt)row.append(element('div',`${label('reset')} ${new Date(w.resetsAt*1000).toLocaleString(document.documentElement.lang)}`,'hover-reset'));
+  shell.append(row);
+ }
+ if(data?.kind==='balance')for(const w of data.value){const row=element('section',undefined,'hover-row');row.append(element('div',`${w.currency} ${w.total}`,'hover-line'),element('p',`${label('paid')} ${w.toppedUp} · ${label('granted')} ${w.granted}`,'muted'));shell.append(row);}
+ if(view.stale)shell.append(element('p',label('stale'),'error'));
+ if(snapshot.reading.error)shell.append(element('p',label(snapshot.reading.error.code),'error'));
+ shell.append(element('footer',snapshot.reading.updated?`${label('updated')} ${new Date(snapshot.reading.updated*1000).toLocaleTimeString(document.documentElement.lang)}`:label('never'),'muted'));
+ root.append(shell);
+}
 function render(){
  const focused=(document.activeElement as HTMLElement|null)?.id;
- root.replaceChildren();document.documentElement.lang=isChinese(snapshot)?'zh-Hans':'en';
+ root.replaceChildren();document.documentElement.lang=isChinese(snapshot)?'zh-Hans':'en';document.body.classList.toggle('hover-mode',hover);
+ document.documentElement.style.setProperty('--accent',snapshot.preferences.source==='codex'?'#338f74':snapshot.preferences.source==='claude'?'#cc785c':'#4d6bfe');
+ if(hover){renderHover();return;}
  const shell=element('main',undefined,'shell');const header=element('header');const brand=element('div');
- brand.append(element('span','QUOTANEST','eyebrow'),element('h1',label('title')));header.append(brand,element('span',label('beta'),'badge'));shell.append(header);
+ brand.append(element('span','QUOTANEST','eyebrow'),element('h1',label('title')));const close=button('close',async()=>{if(native)await command('hide_controls');});close.id='close';header.append(brand,close);shell.append(header);
  if(!native)shell.append(element('p',label('demo'),'demo'));
  if(settings){
-  const back=button('back',()=>{settings=false;preferencesEditing=false;});back.id='back';shell.append(back,element('h2',label('settings')));
+  const back=button('back',()=>{settings=false;preferencesEditing=false;});back.id='back';shell.append(back,element('h2',label('settings')));sourcePicker(shell);
   const form=element('form');const language=languageSelect();const languageLabel=element('label',label('language'));languageLabel.htmlFor='language';form.append(languageLabel,language);
   const path=element('input');path.id='directory';path.value=snapshot.preferences.directory;const pathLabel=element('label',label('directory'));pathLabel.htmlFor='directory';form.append(pathLabel,path);
   const autostart=element('input');autostart.type='checkbox';autostart.id='autostart';autostart.checked=snapshot.preferences.autostart;
@@ -43,11 +75,7 @@ function render(){
   if(snapshot.update){update.append(element('p',snapshot.update.version));const install=button('install',async()=>{if(native)await command('install_update');});install.id='install-update';install.disabled=snapshot.updateStatus==='downloading';update.append(install);}
   const quit=button('quit',async()=>{if(native)await command('quit');});quit.id='quit';shell.append(form,update,element('p',label('scope'),'muted'),quit);
  }else{
-  const sourceLabel=element('label',label('source'));sourceLabel.htmlFor='source';const select=element('select');select.id='source';
-  const codex=element('option',label('codex'));codex.value='codex';select.append(codex);const claude=element('option',label('claude'));claude.value='claude';select.append(claude);
-  for(const c of snapshot.connections){const option=element('option',`${c.name||'DeepSeek'} · ${c.harness==='claude'?'Claude Code':'Codex'}${c.supported?'':` · ${label('unsupported')}`}`);option.value=`api:${c.id}`;option.disabled=!c.supported;select.append(option);}
-  if(!Array.from(select.options).some(o=>o.value===snapshot.preferences.source)){const option=element('option',label('source_missing'));option.value=snapshot.preferences.source;select.append(option);}
-  select.value=snapshot.preferences.source;select.onchange=()=>void run(()=>selectSource(select.value));shell.append(sourceLabel,select);
+  sourcePicker(shell);
   if(snapshot.preferences.source.startsWith('api:'))shell.append(element('p',label('configuration'),'muted'));
   const view=present(snapshot);const card=element('section',undefined,view.stale?'card stale':'card');card.setAttribute('aria-live','polite');
   card.append(element('span',snapshot.preferences.source==='codex'?label('codex'):snapshot.preferences.source==='claude'?label('claude'):`DeepSeek · ${label('api')}`,'eyebrow'),element('h2',view.name),element('div',view.amount,'amount'));
@@ -83,4 +111,8 @@ function render(){
 }
 async function syncAfter(){snapshot=await command<Snapshot>('snapshot');}
 async function start(){if(native){try{snapshot=await command<Snapshot>('snapshot');}catch{localError='http_error';}}render();setInterval(()=>void sync().catch(()=>{}),1000);}
+if(native){
+ void listen('open-settings',()=>void run(async()=>{snapshot=await command<Snapshot>('snapshot');settings=true;preferencesEditing=true;}));
+ void listen('snapshot-changed',()=>{if(hover)void sync().catch(()=>{});});
+}
 void start();

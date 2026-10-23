@@ -6,17 +6,17 @@ Windows 客户端与现有 Mac 版独立，面向 **Windows 11 x64**。本轮不
 
 ## Install / 安装
 
-Download `QuotaNest-windows-x64-beta` from the successful **Windows beta** Actions run. Extract the ZIP and check the installer against its adjacent `SHA256SUMS.txt`. Run `QuotaNest-1.9.0-beta.2-windows-x64-setup.exe`. Installation is per user and does not require writing to Program Files. Beta artifacts are not official Releases and are never delivered by the Mac updater.
+Download `QuotaNest-windows-x64-beta` from the successful **Windows beta** Actions run. Extract the ZIP and check the installer against its adjacent `SHA256SUMS.txt`. Run `QuotaNest-1.9.0-beta.3-windows-x64-setup.exe`. Installation is per user and does not require writing to Program Files. Beta artifacts are not official Releases and are never delivered by the Mac updater.
 
 从成功的 **Windows beta** Actions 下载上述 artifact，解压后核对 SHA-256，再运行安装程序。按当前用户安装。内测包没有 Windows 代码签名证书，系统可能显示 SmartScreen 提示；不自动关闭或绕过它。内测附件不进入 Mac 正式更新渠道。
 
 ```powershell
-Get-FileHash .\QuotaNest-1.9.0-beta.2-windows-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\QuotaNest-1.9.0-beta.3-windows-x64-setup.exe -Algorithm SHA256
 ```
 
 ## Use / 使用
 
-- Open the tray icon to show the details window. Closing the window hides it; Settings → Quit exits the app. 托盘图标打开详情，关闭窗口后驻留托盘，在设置中退出。
+- **Dynamic tray / 动态托盘:** centered remaining number with a hollow progress ring, both in the selected platform color (Codex teal / Claude terracotta / DeepSeek blue). Hover opens read-only usage; move into the card to keep it open. Left-click opens source/settings/update controls; close or focus loss hides controls. No floating capsule. API balances use a currency symbol without a fake percentage; complete amounts appear on hover. / 数字与进度环随来源刷新，悬停看额度，点击管理来源、设置与更新。
 - **Codex:** install the official native Windows CLI and sign in there. QuotaNest invokes `codex.exe app-server` directly, without cmd/PowerShell shell interpolation. Standard PATH and the official npm package's native vendor path are searched. It never falls back to WSL or invokes an unknown `.cmd` shim. If not detected, add the directory containing the official `codex.exe` to PATH and restart QuotaNest.
 - **Claude:** select **Claude · Subscription quota / Claude · 套餐余量**. Sign in with `claude auth login` in native Windows Claude Code first. Reads `%USERPROFILE%\.claude\.credentials.json`, or `.credentials.json` under an absolute `CLAUDE_CONFIG_DIR`. Existing subscription OAuth only; API keys and CC Switch tokens do not supply Claude subscription quota. Shows 5-hour, total weekly, Sonnet/Opus weekly groups and reset times. Expired or missing `user:profile` permission requires re-login in the original client; QuotaNest does not refresh or overwrite credentials.
 - **DeepSeek:** Settings → CC Switch data directory → Read saved connections; then choose an official DeepSeek connection in the single Display source selector. Existing schema 18–20 Claude Code/Codex configurations are supported. 不手动添加 Key，不改 CC Switch 的任何配置，不声称配置就是实际会话路由。

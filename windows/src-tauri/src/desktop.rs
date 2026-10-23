@@ -2,6 +2,7 @@ use crate::{
     cc_switch, claude, codex, deepseek,
     models::AppError,
     service::{Data, Preferences, Service, Snapshot},
+    tray_visual::{self, Action, BoxRect, Hover},
     updates,
 };
 use std::{
@@ -12,7 +13,7 @@ use std::{
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, WebviewWindow, WindowEvent,
+    Emitter, Manager, WebviewWindow, WindowEvent,
 };
 
 #[derive(Clone)]
@@ -23,6 +24,7 @@ struct Backend {
     home: PathBuf,
     preferences: PathBuf,
     demo: bool,
+    hover: Arc<Mutex<Hover>>,
 }
 impl Backend {
     fn snapshot(&self) -> Snapshot {
@@ -162,22 +164,141 @@ async fn poll(backend: Backend, app: tauri::AppHandle) {
     }
 }
 fn update_tray(backend: &Backend, app: &tauri::AppHandle) {
-    let tooltip = {
+    let (tooltip, pixels) = {
         let service = backend.service.lock().unwrap();
-        format!(
-            "QuotaNest · {}{}",
-            service.display_amount(),
-            if service.state.reading.error.is_some() {
-                " · !"
-            } else {
-                ""
-            }
+        let amount = service.display_amount();
+        let stale = service.state.reading.error.is_some();
+        let ratio = amount.strip_suffix('%').and_then(|v| v.parse::<f64>().ok());
+        let text = if let Some(n) = ratio {
+            format!("{n:.0}")
+        } else if amount.starts_with("CNY ") {
+            "¥".into()
+        } else if amount.starts_with("USD ") {
+            "$".into()
+        } else {
+            "—".into()
+        };
+        (
+            format!(
+                "QuotaNest · {} · {amount}{}",
+                if service.state.preferences.source == "claude" {
+                    "Claude"
+                } else if service.state.preferences.source == "codex" {
+                    "Codex"
+                } else {
+                    "DeepSeek"
+                },
+                if stale { " · !" } else { "" }
+            ),
+            tray_visual::render(
+                &text,
+                ratio,
+                tray_visual::color(&service.state.preferences.source),
+                stale,
+            ),
         )
     };
-    // Never hold service while dispatching synchronously to the UI thread.
     if let Some(tray) = app.tray_by_id("quota") {
-        let _ = tray.set_tooltip(Some(tooltip));
+        let _ = tray.set_icon(Some(tauri::image::Image::new_owned(pixels, 32, 32)));
+        let hovered = backend.hover.lock().unwrap().visible;
+        let _ = tray.set_tooltip(if hovered { None } else { Some(tooltip) });
     }
+    let _ = app.emit("snapshot-changed", ());
+}
+fn physical(rect: tauri::Rect, scale: f64) -> BoxRect {
+    let p = rect.position.to_physical::<f64>(scale);
+    let s = rect.size.to_physical::<f64>(scale);
+    BoxRect {
+        x: p.x,
+        y: p.y,
+        w: s.width,
+        h: s.height,
+    }
+}
+fn window_rect(window: &WebviewWindow) -> Option<BoxRect> {
+    let p = window.outer_position().ok()?;
+    let s = window.outer_size().ok()?;
+    Some(BoxRect {
+        x: p.x as f64,
+        y: p.y as f64,
+        w: s.width as f64,
+        h: s.height as f64,
+    })
+}
+fn place(window: &WebviewWindow, anchor: BoxRect) {
+    if let Ok(Some(monitor)) =
+        window.monitor_from_point(anchor.x + anchor.w / 2., anchor.y + anchor.h / 2.)
+    {
+        let work = monitor.work_area();
+        let scale = monitor.scale_factor();
+        let (width, height) = if window.label() == "hover" {
+            (340., 470.)
+        } else {
+            (380., 650.)
+        };
+        let size = (
+            (width * scale).min(work.size.width as f64),
+            (height * scale).min(work.size.height as f64),
+        );
+        let _ = window.set_size(tauri::PhysicalSize::new(size.0 as u32, size.1 as u32));
+        let (x, y) = tray_visual::position(
+            anchor,
+            BoxRect {
+                x: work.position.x as f64,
+                y: work.position.y as f64,
+                w: work.size.width as f64,
+                h: work.size.height as f64,
+            },
+            size,
+        );
+        let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+    }
+}
+fn controls(app: &tauri::AppHandle) {
+    let backend = app.state::<Backend>();
+    backend.hover.lock().unwrap().dismiss();
+    if let Some(hover) = app.get_webview_window("hover") {
+        let _ = hover.hide();
+    }
+    update_tray(&backend, app);
+    if let Some(window) = app.get_webview_window("main") {
+        if let Some(tray) = app.tray_by_id("quota") {
+            if let Ok(Some(rect)) = tray.rect() {
+                place(&window, physical(rect, window.scale_factor().unwrap_or(1.)));
+            }
+        }
+        let _ = app.emit_to("main", "open-settings", ());
+        show(&window);
+    }
+}
+#[tauri::command]
+fn hide_controls(app: tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
+}
+#[tauri::command]
+fn demo_tray_bounds(
+    backend: tauri::State<'_, Backend>,
+    app: tauri::AppHandle,
+) -> Result<serde_json::Value, AppError> {
+    if !backend.demo {
+        return Err(AppError::new("unsupported_source"));
+    }
+    let hover = app
+        .get_webview_window("hover")
+        .ok_or_else(|| AppError::new("protocol"))?;
+    let tray = app
+        .tray_by_id("quota")
+        .ok_or_else(|| AppError::new("protocol"))?
+        .rect()
+        .map_err(|_| AppError::new("protocol"))?
+        .ok_or_else(|| AppError::new("protocol"))?;
+    let rect = physical(tray, hover.scale_factor().unwrap_or(1.));
+    let card = window_rect(&hover).ok_or_else(|| AppError::new("protocol"))?;
+    Ok(
+        serde_json::json!({"tray":{"x":rect.x,"y":rect.y,"w":rect.w,"h":rect.h},"card":{"x":card.x,"y":card.y,"w":card.w,"h":card.h},"visible":hover.is_visible().unwrap_or(false)}),
+    )
 }
 #[tauri::command]
 fn select_display(
@@ -225,6 +346,7 @@ fn select_source(
     }
     let snapshot = service.snapshot();
     drop(service);
+    update_tray(&backend, &app);
     start_poll(&backend, &app);
     Ok(snapshot)
 }
@@ -366,6 +488,14 @@ fn show(window: &WebviewWindow) {
     let _ = window.unminimize();
     let _ = window.set_focus();
 }
+fn clock_ms() -> u64 {
+    use std::sync::OnceLock;
+    static START: OnceLock<std::time::Instant> = OnceLock::new();
+    START
+        .get_or_init(std::time::Instant::now)
+        .elapsed()
+        .as_millis() as u64
+}
 fn autolaunch() -> Result<auto_launch::AutoLaunch, AppError> {
     let path = std::env::current_exe().map_err(|_| AppError::new("autostart_failed"))?;
     let mut builder = auto_launch::AutoLaunchBuilder::new();
@@ -381,9 +511,9 @@ fn autolaunch() -> Result<auto_launch::AutoLaunch, AppError> {
 }
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app,_,_|{if let Some(window)=app.get_webview_window("main"){show(&window);}}))
+        .plugin(tauri_plugin_single_instance::init(|app,_,_|controls(app)))
 
-        .invoke_handler(tauri::generate_handler![snapshot,refresh,select_display,select_source,discover,save_preferences,check_update,install_update,quit])
+        .invoke_handler(tauri::generate_handler![snapshot,hide_controls,demo_tray_bounds,refresh,select_display,select_source,discover,save_preferences,check_update,install_update,quit])
         .setup(|app|{
             let home=std::env::var_os(if cfg!(windows){"USERPROFILE"}else{"HOME"}).map(PathBuf::from).ok_or("home missing")?;
             let preferences=app.path().app_config_dir()?.join("preferences.json");
@@ -397,7 +527,7 @@ pub fn run() {
             }else if service.state.preferences.source.starts_with("api:") {
                 match cc_switch::discover(&PathBuf::from(&service.state.preferences.directory)){Ok(c)=>service.state.connections=c,Err(e)=>service.state.discovery_error=Some(e)}
             }
-            let backend=Backend{service:Arc::new(Mutex::new(service)),work:Arc::new(tokio::sync::Notify::new()),update_work:Arc::new(tokio::sync::Mutex::new(())),home,preferences,demo};
+            let backend=Backend{service:Arc::new(Mutex::new(service)),work:Arc::new(tokio::sync::Notify::new()),update_work:Arc::new(tokio::sync::Mutex::new(())),home,preferences,demo,hover:Arc::new(Mutex::new(Hover::default()))};
             app.manage(backend.clone());
             let open=MenuItem::with_id(app,"open","Open QuotaNest",true,None::<&str>)?;
             let refresh=MenuItem::with_id(app,"refresh","Refresh / 刷新",true,None::<&str>)?;
@@ -406,10 +536,37 @@ pub fn run() {
             let window=app.get_webview_window("main").ok_or("window missing")?;
             let menu_backend=backend.clone();
             TrayIconBuilder::with_id("quota").icon(app.default_window_icon().ok_or("icon missing")?.clone()).tooltip("QuotaNest").menu(&menu).show_menu_on_left_click(false)
-                .on_menu_event(move|app,event|match event.id.as_ref(){"open"=>{if let Some(w)=app.get_webview_window("main"){show(&w);}},"refresh"=>start_poll(&menu_backend,app),"quit"=>app.exit(0),_=>{}})
-                .on_tray_icon_event(|tray,event|{if let TrayIconEvent::Click{button:MouseButton::Left,button_state:MouseButtonState::Up,..}=event{if let Some(window)=tray.app_handle().get_webview_window("main"){show(&window);}}}).build(app)?;
-            let hide=window.clone();window.on_window_event(move|event|{if let WindowEvent::CloseRequested{api,..}=event{api.prevent_close();let _=hide.hide();}});
-            if std::env::args().any(|a|a=="--background"){let _=window.hide();}
+                .on_menu_event(move|app,event|match event.id.as_ref(){"open"=>controls(app),"refresh"=>start_poll(&menu_backend,app),"quit"=>app.exit(0),_=>{}})
+                .on_tray_icon_event(|tray,event|{
+                    let app=tray.app_handle();
+                    match event {
+                        TrayIconEvent::Click{button:MouseButton::Left,button_state:MouseButtonState::Up,..}=>controls(app),
+                        TrayIconEvent::Enter{rect,..}=>{
+                            let _=tray.set_tooltip(None::<&str>);
+                            if let Some(window)=app.get_webview_window("hover") {
+                                let anchor=physical(rect,window.scale_factor().unwrap_or(1.));place(&window,anchor);
+                                app.state::<Backend>().hover.lock().unwrap().enter(anchor,clock_ms());
+                            }
+                        },_=>{}
+                    }
+                }).build(app)?;
+            let hide=window.clone();window.on_window_event(move|event|{match event {WindowEvent::CloseRequested{api,..}=>{api.prevent_close();let _=hide.hide();},WindowEvent::Focused(false)=>{let _=hide.hide();},_=>{}}});
+            if demo {show(&window);}
+            let hover_app=app.handle().clone();let hover_backend=backend.clone();
+            tauri::async_runtime::spawn(async move{loop{
+                tokio::time::sleep(Duration::from_millis(80)).await;
+                let active=hover_backend.hover.lock().unwrap().anchor.is_some();if !active{continue;}
+                let app=hover_app.clone();let state=hover_backend.clone();
+                let _=hover_app.run_on_main_thread(move||{
+                    if let Some(window)=app.get_webview_window("hover") {
+                        if let (Ok(cursor),Some(card))=(window.cursor_position(),window_rect(&window)) {
+                            let action=state.hover.lock().unwrap().tick((cursor.x,cursor.y),card,clock_ms());
+                            match action {Action::Show=>{let _=window.show();},Action::Hide=>{let _=window.hide();update_tray(&state,&app);},Action::None=>{}}
+                        }
+                    }
+                });
+            }});
+            update_tray(&backend,app.handle());
             let handle=app.handle().clone();
             start_poll(&backend,&handle);
             let check_backend=backend.clone();

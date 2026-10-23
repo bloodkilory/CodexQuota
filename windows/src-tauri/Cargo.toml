@@ -1,7 +1,7 @@
 [package]
 name = "quotanest-windows"
 default-run = "QuotaNest"
-version = "1.9.0-beta.2"
+version = "1.9.0-beta.3"
 edition = "2021"
 rust-version = "1.88"
 
@@ -29,6 +29,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "str
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "process", "io-util", "sync", "fs"] }
 semver = "1"
 httpdate = "1"
+fontdue = "0.9"
 time = { version = "0.3", features = ["parsing"] }
 tauri = { version = "2", optional = true, features = ["tray-icon", "image-png"] }
 auto-launch = { version = "0.6", optional = true }

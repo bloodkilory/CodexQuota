@@ -6,4 +6,5 @@ pub mod deepseek;
 pub mod desktop;
 pub mod models;
 pub mod service;
+pub mod tray_visual;
 pub mod updates;
