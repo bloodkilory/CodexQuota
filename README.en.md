@@ -60,7 +60,9 @@ Select a wallet amount or official subscription from the same top selector. Paid
 
 The glass-style interface supports light/dark appearances and reduced transparency. The system NSPopover draws the backdrop, arrow, and rounded corners as one surface; inner cards retain their glass styling.
 
-Select a provider in the popover: **Codex**, **Claude Code**, or **Antigravity**. The capsule reports the lowest remaining value among the selected period’s applicable windows (Codex uses its main bucket; Antigravity uses Gemini groups only). If Gemini quota is unavailable, Antigravity shows `—` rather than substituting another model. All model groups remain available in the popover. It is not an average across models. Reset times use your system time zone.
+When multiple models or quota groups are available, choose the radio button beside a group to display it in the capsule. The period button then cycles only that group’s periods. Choices persist per provider across refreshes and restarts. **Automatic (default)** restores the original provider rule; a missing selection temporarily falls back to Automatic, while an unknown selected quota stays `—` without borrowing another model’s percentage.
+
+Select a provider in the popover: **Codex**, **Claude Code**, or **Antigravity**. In Automatic mode, the capsule reports the lowest remaining value among the selected period’s applicable windows (Codex uses its main bucket; Antigravity uses Gemini groups only). If Gemini quota is unavailable, Antigravity shows `—` rather than substituting another model. All model groups remain available in the popover. It is not an average across models. Reset times use your system time zone.
 
 Provider accents are teal for Codex, terracotta for Claude and blue for Antigravity. `!` means refresh failed and the value is stale; `—` means no valid data yet. The app also refreshes on launch and wake. Choose **Launch at login** in Settings, the refresh icon to the left of Settings in details, or **Quit QuotaNest** in Settings. After moving the installed app, toggle launch at login off and on to update its path.
 

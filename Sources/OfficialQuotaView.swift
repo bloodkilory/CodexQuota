@@ -1,7 +1,7 @@
 import AppKit
 
 enum OfficialQuotaView {
-    static func build(provider: QuotaProviderID, reading: ProviderReading, displayedPeriod: QuotaPeriod?, authorize: @escaping () -> Void) -> NSStackView {
+    static func build(provider: QuotaProviderID, reading: ProviderReading, displayedPeriod: QuotaPeriod?, selectModel: @escaping (String?) -> Void = { _ in }, authorize: @escaping () -> Void) -> NSStackView {
         let selectedProvider = provider
         let snapshot = reading.snapshot, errorMessage = reading.error, refreshing = reading.refreshing
         let lastSuccess = reading.lastSuccess
@@ -14,13 +14,32 @@ enum OfficialQuotaView {
         if snapshot == nil || errorMessage != nil { stack.addArrangedSubview(label(selectedProvider.loginHelp, color:.secondaryLabelColor)) }
         if let selected = snapshot?.selected {
             let source = selectedProvider == .codex ? (selected.1.planType ?? L("Codex 登录账号")) : L("本机 ") + selectedProvider.title + L(" 官方登录")
-            stack.toolTip! += "\n" + source + L(" · 胶囊：") + (selectedProvider == .antigravity ? "Gemini " : "") + reading.periodLabel(for:selectedProvider,period:displayedPeriod)
+            stack.toolTip! += "\n" + source + L(" · 胶囊：") + (reading.selectedModel.map { $0.name + " " } ?? (selectedProvider == .antigravity ? "Gemini " : "")) + reading.periodLabel(for:selectedProvider,period:displayedPeriod)
         }
         if let errorMessage { stack.addArrangedSubview(label("⚠ \(errorMessage)" + (snapshot == nil ? "" : L("\n当前百分比为上次成功查询结果。")), color: .systemOrange)) }
         if let snapshot {
+            let models = reading.models
+            let showModelChoice = models.count > 1 || reading.selectedModel != nil
+            func radio(_ title: String, id: String?) -> NSButton {
+                let button = AccountActionButton(title,id:"quota-model-" + (id ?? "automatic"),handler:{ selectModel(id) })
+                button.setButtonType(.radio); button.controlSize = .small; button.font = .systemFont(ofSize:11)
+                button.state = reading.selectedModel?.id == id ? .on : .off
+                button.lineBreakMode = .byTruncatingTail; button.toolTip = title
+                button.setAccessibilityLabel(L("在胶囊中显示：%@",title))
+                button.widthAnchor.constraint(equalToConstant:220).isActive = true
+                return button
+            }
+            if showModelChoice {
+                stack.addArrangedSubview(label(L("胶囊显示额度"),color:.secondaryLabelColor))
+                let automatic = radio(L("自动（默认）"),id:nil)
+                automatic.toolTip = L("按平台默认规则显示额度")
+                stack.addArrangedSubview(automatic)
+            }
             for (key, bucket) in snapshot.namedBuckets {
                 let heading = bucket.nameKey == nil && bucket.limitName == nil && bucket.limitId == nil ? key : bucket.displayName
-                if snapshot.namedBuckets.count > 1 || heading.lowercased() != selectedProvider.title.lowercased() {
+                if showModelChoice, let model = models.first(where:{ $0.key == key }) {
+                    stack.addArrangedSubview(radio(heading,id:model.id))
+                } else if snapshot.namedBuckets.count > 1 || heading.lowercased() != selectedProvider.title.lowercased() {
                     stack.addArrangedSubview(label(heading,size:11,bold:true))
                 }
                 if bucket.windows.isEmpty { stack.addArrangedSubview(label(L("暂无可用额度窗口"), color: .secondaryLabelColor)) }

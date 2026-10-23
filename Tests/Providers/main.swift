@@ -45,3 +45,38 @@ expect(credits.window(for: .qoder, period: .billing)?.remaining == 75, "Exhauste
 expect(credits.periodLabel(for: .qoder, period: .billing) == "额", "Billing capsule has compact label")
 expect(monthly.title == "月度额度", "Calendar-month title preserved")
 expect(QuotaProviderID.allCases.filter { $0.experimental }.count == 5, "Five new adapters explicitly experimental")
+
+
+var chosen = ProviderReading(snapshot:mixed)
+chosen.modelID = chosen.models.first { $0.name == "Claude and GPT models" }!.id
+expect(chosen.window(for:.antigravity,period:.weekly)?.remaining == 0,"explicit model overrides Gemini default without borrowing Gemini quota")
+expect(chosen.period(for:.antigravity,preferred:.short) == .weekly,"model without short window falls back to its own weekly period")
+chosen.modelID = chosen.models.first { $0.name == "Gemini Pro" }!.id
+expect(chosen.window(for:.claude,period:.weekly)?.remaining == 70,"explicit model does not use another group's zero balance")
+expect(chosen.periods(for:.claude) == [.weekly],"period choices belong only to selected model")
+let chosenID = chosen.modelID
+chosen.snapshot = QuotaSnapshot(rateLimits:nil,rateLimitsByLimitId:["reordered":group("Gemini Pro",30),"another":group("Claude and GPT models",100)])
+expect(chosen.selectedModel?.id == chosenID && chosen.window(for:.claude,period:.weekly)?.remaining == 70,"model identity survives reordered indexed groups")
+chosen.snapshot = noGemini
+expect(chosen.selectedModel == nil && chosen.window(for:.claude,period:.weekly)?.remaining == 80,"removed model resolves to visible automatic default")
+let unknownBucket = QuotaBucket(limitId:"unknown",limitName:"Unknown Model",planType:nil,primary:QuotaWindow(usedPercent:nil,windowDurationMins:10080,resetsAt:1000),secondary:nil,credits:nil)
+chosen.snapshot = QuotaSnapshot(rateLimits:nil,rateLimitsByLimitId:["known":group("Known Model",20),"unknown":unknownBucket])
+chosen.modelID = chosen.models.first { $0.name == "Unknown Model" }!.id
+expect(chosen.selectedModel != nil && chosen.window(for:.claude,period:.weekly) == nil,"unknown selected model never borrows another model's percentage")
+var addon = credits
+addon.modelID = addon.models.first { $0.key == "qoder-addon" }!.id
+expect(addon.window(for:.qoder,period:.billing)?.remaining == 0,"explicit add-on selection is independent of default subscription")
+let duplicateNames = QuotaSnapshot(rateLimits:nil,rateLimitsByLimitId:["a":group("Same",10),"b":group("Same",20)])
+expect(Set(ProviderReading(snapshot:duplicateNames).models.map { $0.id }).count == 2,"duplicate model titles retain distinct radio identities")
+
+let partiallyUnknown = try ProviderPayload.claude(Data(#"{"five_hour":{"utilization":18},"seven_day_sonnet":{"utilization":null}}"#.utf8))
+var unknownSonnet = ProviderReading(snapshot:partiallyUnknown)
+expect(unknownSonnet.models.contains { $0.key == "seven_day_sonnet" },"Claude preserves a returned unknown model instead of deleting it")
+unknownSonnet.modelID = unknownSonnet.models.first { $0.key == "seven_day_sonnet" }!.id
+expect(unknownSonnet.window(for:.claude,period:.short) == nil && unknownSonnet.window(for:.claude,period:.weekly) == nil,"real parsed unknown Sonnet never falls back to valid Claude balance")
+
+let unknownGroup = try ProviderPayload.antigravity(Data(#"{"status":"SUCCESS","command":{"name":"usage","data":{"groups":[{"name":"Gemini Models","buckets":[{"window":"weekly","remaining_fraction":0.8}]},{"name":"Claude and GPT models","buckets":[{"window":"weekly","remaining_fraction":null}]}]}}}"#.utf8))
+expect(unknownGroup.buckets.count == 2,"Antigravity preserves returned unknown model rather than borrowing Gemini")
+var unknownAG = ProviderReading(snapshot:unknownGroup)
+unknownAG.modelID = "name:Claude and GPT models"
+expect(unknownAG.selectedModel != nil && unknownAG.window(for:.antigravity,period:.weekly) == nil,"parsed unknown non-Gemini model stays unknown")

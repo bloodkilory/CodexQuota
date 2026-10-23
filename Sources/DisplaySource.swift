@@ -28,4 +28,9 @@ final class DisplaySelection {
         return QuotaProviderID(rawValue:defaults.string(forKey:"selectedProvider") ?? "") ?? .codex
     }
     var accountID: String? { if case .api(let id) = source { return id }; return nil }
+    func model(for provider: QuotaProviderID) -> String? { defaults.string(forKey:"quotaModel." + provider.rawValue) }
+    func selectModel(_ id: String?, for provider: QuotaProviderID) {
+        let key = "quotaModel." + provider.rawValue
+        if let id { defaults.set(id,forKey:key) } else { defaults.removeObject(forKey:key) }
+    }
 }

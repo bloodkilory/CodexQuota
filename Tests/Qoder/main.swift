@@ -28,3 +28,7 @@ assert(ProcessInfo.processInfo.systemUptime - started < 3)
 let cancelled = BoundedCommand(); cancelled.cancel()
 do { _ = try cancelled.run("/bin/sh", arguments: ["-c", "exit 0"], environment: [:]); fatalError("cancelled runner started") } catch {}
 print("Qoder bounded-process and sanitized-status tests passed")
+
+let partial = try QoderPayload.decode(Data(#"{"user_quota":{"total":100,"used":20},"add_on_quota":{"total":100,"used":null}}"#.utf8))
+assert(partial.rateLimitsByLimitId?["qoder-addon"]?.primary != nil,"returned unknown Qoder resource must remain selectable")
+assert(partial.rateLimitsByLimitId?["qoder-addon"]?.primary?.remaining == nil,"unknown resource must not become subscription balance")

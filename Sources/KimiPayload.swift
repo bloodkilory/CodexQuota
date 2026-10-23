@@ -29,8 +29,9 @@ enum KimiPayload {
         }
         if let usages = root["usages"] as? [String: Any] {
             func window(_ key: String, _ minutes: Int?) -> QuotaWindow? {
-                guard let row = usages[key] as? [String: Any], let ratio = number(row["used_ratio"]), ratio >= 0, (ratio * 100).isFinite else { return nil }
-                return QuotaWindow(usedPercent: ratio * 100, windowDurationMins: minutes, resetsAt: timestamp(row["reset_time"]), periodLabel: minutes == nil ? "月度额度" : nil, localizesPeriodLabel:true)
+                guard let row = usages[key] as? [String: Any] else { return nil }
+                let ratio = number(row["used_ratio"]).flatMap { $0 >= 0 && ($0 * 100).isFinite ? $0 : nil }
+                return QuotaWindow(usedPercent: ratio.map { $0 * 100 }, windowDurationMins: minutes, resetsAt: timestamp(row["reset_time"]), periodLabel: minutes == nil ? "月度额度" : nil, localizesPeriodLabel:true)
             }
             bucket("kimi", "Kimi Code", window("limit_5h", 300), window("limit_7d", 10080))
             bucket("kimi-month-total", "Kimi 月度总额度", window("limit_month_total", nil))
@@ -56,7 +57,7 @@ enum KimiPayload {
             }
             bucket("kimi", "Kimi Code", hourly, weekly)
         }
-        guard !buckets.isEmpty else { throw QuotaError(message: "Kimi 未返回可识别的额度窗口；实验接入尚未实测") }
+        guard buckets.values.contains(where:{ $0.remaining != nil }) else { throw QuotaError(message: "Kimi 未返回可识别的额度窗口；实验接入尚未实测") }
         return QuotaSnapshot(rateLimits: nil, rateLimitsByLimitId: buckets)
     }
 }

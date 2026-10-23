@@ -330,3 +330,7 @@
 "ZCode 设备信息不可用；请打开官方客户端" = "ZCode device information unavailable; open the official client";
 "实验性接入" = "Experimental adapter";
 "请先在官方 ZCode 登录智谱个人账号并连接 Coding Plan 或 Start Plan。仅复用已有登录，不创建 API Key。" = "Sign in with a personal Zhipu account and connect Coding Plan or Start Plan in official ZCode. Reuses existing sign-in without creating API keys.";
+"胶囊显示额度" = "Capsule quota";
+"自动（默认）" = "Automatic (default)";
+"按平台默认规则显示额度" = "Use the default quota rule for this provider";
+"在胶囊中显示：%@" = "Show in capsule: %@";

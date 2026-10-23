@@ -29,6 +29,17 @@ enum QuotaProviderID: String, CaseIterable {
 }
 struct ProviderReading {
     var snapshot: QuotaSnapshot?
+    var modelID: String?
+    var models: [(id: String, key: String, name: String, bucket: QuotaBucket)] {
+        let entries = snapshot?.namedBuckets.filter { !$0.1.windows.isEmpty } ?? []
+        return entries.map { key, bucket in
+            let name = bucket.nameKey == nil && bucket.limitName == nil && bucket.limitId == nil ? key : bucket.displayName
+            // Native responses may reorder indexed groups; public model names survive that reorder.
+            let named = bucket.nameKey == nil && bucket.limitName != nil && entries.filter { $0.1.limitName == bucket.limitName }.count == 1
+            return (named ? "name:" + bucket.limitName! : "key:" + key, key, name, bucket)
+        }
+    }
+    var selectedModel: (id: String, key: String, name: String, bucket: QuotaBucket)? { models.first { $0.id == modelID } }
     var lastSuccess: Date?
     var failure: Error?
     private var errorText: String?
@@ -40,6 +51,7 @@ struct ProviderReading {
     var successes = 0
     init(snapshot: QuotaSnapshot? = nil) { self.snapshot = snapshot }
     func remaining(for provider: QuotaProviderID) -> Double? {
+        if let selectedModel { return selectedModel.bucket.remaining }
         if provider == .codex { return snapshot?.remaining }
         if provider == .qoder { return windows(for: provider).compactMap { $0.remaining }.min() }
         if provider == .antigravity {
@@ -63,6 +75,7 @@ enum QuotaPeriod: String, CaseIterable {
 }
 extension ProviderReading {
     func windows(for provider: QuotaProviderID) -> [QuotaWindow] {
+        if let selectedModel { return selectedModel.bucket.windows.filter { $0.remaining != nil } }
         let buckets: [QuotaBucket]
         switch provider {
         case .codex: buckets = snapshot?.selected.map { [$0.1] } ?? []

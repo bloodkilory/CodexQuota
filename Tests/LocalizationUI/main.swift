@@ -195,7 +195,7 @@ let namelessGroups = try QuotaSnapshot.decode(Data(#"{"rateLimitsByLimitId":{"gr
 for language in [InterfaceLanguage.english,.chinese] {
     useTestLanguage(language)
     let details = OfficialQuotaView.build(provider:.codex,reading:ProviderReading(snapshot:namelessGroups),displayedPeriod:.short,authorize:{})
-    let headings = descendants(details).compactMap { $0 as? NSTextField }.filter { $0.font == NSFont.systemFont(ofSize:11,weight:.semibold) }.map(\.stringValue)
+    let headings = descendants(details).compactMap { $0 as? NSButton }.map(\.title).filter { $0 != L("自动（默认）") }
     assert(headings == ["group-alpha","group-beta"],"nameless official quota groups retain distinct original map-key headings in each language")
 }
 print("PASS nameless official quota groups retain original distinct headings in English and Chinese")
@@ -228,7 +228,8 @@ for language in [InterfaceLanguage.chinese,.english] {
     useTestLanguage(language)
     let details = OfficialQuotaView.build(provider:.codex,reading:ProviderReading(snapshot:multiWindow),displayedPeriod:.weekly,authorize:{})
     let labels = descendants(details).compactMap { ($0 as? NSTextField)?.stringValue }
-    for value in ["Alpha","Beta",L("Credits 余额：%@","7.25"),L("%@    剩余 %@",L("%@ 小时额度","5"),"90.0%"),L("%@    剩余 %@",L("%@ 天额度","7"),"70.0%"),L("%@    剩余 %@",L("%@ 天额度","1"),"80.0%")] { assert(labels.contains(value)) }
+    let visibleText = labels + descendants(details).compactMap { ($0 as? NSButton)?.title }
+    for value in ["Alpha","Beta",L("Credits 余额：%@","7.25"),L("%@    剩余 %@",L("%@ 小时额度","5"),"90.0%"),L("%@    剩余 %@",L("%@ 天额度","7"),"70.0%"),L("%@    剩余 %@",L("%@ 天额度","1"),"80.0%")] { assert(visibleText.contains(value)) }
     assert(descendants(details).filter { $0 is NSProgressIndicator }.count == 3,"all windows remain visible, beyond the selected capsule period")
     let formatter = DateFormatter(); formatter.dateFormat = "MM-dd HH:mm"
     assert(labels.contains(L("重置：%@ · 等待服务更新",formatter.string(from:Date(timeIntervalSince1970:1)))))
@@ -248,3 +249,55 @@ for language in [InterfaceLanguage.chinese,.english] {
     assert(labels.contains(L("%@    剩余 %@",language == .english ? "One-time quota" : "一次性额度","75.0%")))
 }
 print("PASS Start Plan one-time expiry and quota label render in Chinese and English without a reset claim")
+
+
+let modelSnapshot = QuotaSnapshot(rateLimits:nil,rateLimitsByLimitId:[
+    "zcode-start-0":QuotaBucket(limitId:"zcode-start-0",limitName:"Start Plan · Main",planType:"Start Plan",primary:QuotaWindow(usedPercent:100,windowDurationMins:1440,resetsAt:2000),secondary:nil,credits:nil),
+    "zcode-start-1":QuotaBucket(limitId:"zcode-start-1",limitName:"Start Plan · Flash",planType:"Start Plan",primary:QuotaWindow(usedPercent:0,windowDurationMins:1440,resetsAt:3000),secondary:nil,credits:nil)
+])
+let modelDetails = OfficialQuotaView.build(provider:.zcode,reading:ProviderReading(snapshot:modelSnapshot),displayedPeriod:.daily,authorize:{})
+assert(descendants(modelDetails).compactMap { $0 as? NSButton }.contains { $0.title == "Start Plan · Flash" },"multiple model quotas need native radio controls to choose the capsule reading")
+
+for language in [InterfaceLanguage.chinese,.english] {
+    useTestLanguage(language)
+    selection.selectModel(nil,for:.zcode)
+    var modelReading = ProviderReading(snapshot:modelSnapshot)
+    func selectedDetails() -> NSStackView {
+        modelReading.modelID = selection.model(for:.zcode)
+        return OfficialQuotaView.build(provider:.zcode,reading:modelReading,displayedPeriod:modelReading.period(for:.zcode,preferred:.short),selectModel:{ selection.selectModel($0,for:.zcode) },authorize:{})
+    }
+    let automatic = selectedDetails()
+    let radios = descendants(automatic).compactMap { $0 as? NSButton }
+    assert(radios.count == 3 && radios.filter { $0.state == .on }.count == 1)
+    assert(radios[0].title == L("自动（默认）") && radios[0].state == .on)
+    let flash = radios.first { $0.title == "Start Plan · Flash" }!
+    flash.performClick(nil)
+    assert(selection.model(for:.zcode) == "name:Start Plan · Flash")
+    assert(DisplaySelection(defaults:defaults).model(for:.zcode) == selection.model(for:.zcode),"model preference survives recreation")
+    assert(selection.model(for:.claude) == nil,"model preference is independent per harness")
+    let selected = selectedDetails()
+    assert(modelReading.window(for:.zcode,period:.daily)?.remaining == 100 && modelReading.window(for:.zcode,period:.daily)?.resetsAt == 3000)
+    assert(descendants(selected).compactMap { $0 as? NSButton }.filter { $0.state == .on }.map { $0.title } == ["Start Plan · Flash"],"exactly the displayed model radio is checked")
+    assert(selected.toolTip!.contains("Start Plan · Flash"))
+    let model = ConnectedAccountsPresentation(connections:[],enabled:[],readings:[:],source:.official(.zcode),currency:nil,sourceError:nil)
+    let content = ConnectedAccountsView.build(model,officialDetails:selected,actions:ConnectedAccountsActions(select:{ _ in },refresh:{ _ in },settings:{}))
+    content.layoutSubtreeIfNeeded(); content.frame = NSRect(x:0,y:0,width:240,height:content.fittingSize.height)
+    nativeSnapshot(content,name:language.rawValue + "-model-selection",dark:true)
+    for control in descendants(content).compactMap({ $0 as? NSButton }) {
+        let bounds = control.convert(control.bounds,to:content)
+        assert(bounds.minX >= -1 && bounds.maxX <= 241,"model radios fit compact popover")
+    }
+    (descendants(selected).compactMap { $0 as? NSButton }.first { $0.title == L("自动（默认）") }!).performClick(nil)
+    assert(selection.model(for:.zcode) == nil,"automatic clears only this harness model preference")
+}
+print("PASS bilingual native model radio, persistence, exact quota/reset and compact layout")
+
+var singleSelected = ProviderReading(snapshot:QuotaSnapshot(rateLimits:officialBucket,rateLimitsByLimitId:nil))
+singleSelected.modelID = singleSelected.models[0].id
+let singleDetails = OfficialQuotaView.build(provider:.codex,reading:singleSelected,displayedPeriod:.short,authorize:{})
+let singleRadios = descendants(singleDetails).compactMap { $0 as? NSButton }
+assert(singleRadios.count == 2 && singleRadios.contains { $0.title == L("自动（默认）") },"one remaining selected group can still return to automatic")
+assert(singleRadios.allSatisfy { $0.identifier != nil } && Set(singleRadios.compactMap { $0.identifier?.rawValue }).count == 2,"radio identities preserve keyboard focus across popover rebuilds")
+var removedSelection = ProviderReading(snapshot:modelSnapshot); removedSelection.modelID = "name:Removed Model"
+let fallbackDetails = OfficialQuotaView.build(provider:.zcode,reading:removedSelection,displayedPeriod:.daily,authorize:{})
+assert(descendants(fallbackDetails).compactMap { $0 as? NSButton }.filter { $0.state == .on }.map { $0.title } == [L("自动（默认）")],"temporarily removed model clearly checks actual Automatic choice")

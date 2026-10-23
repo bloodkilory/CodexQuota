@@ -56,3 +56,7 @@ rejected { _ = try client.readAccessToken(now: 100) }
 check(ProcessInfo.processInfo.systemUptime - fifoStart < 1, "nonregular credential must fail promptly")
 client.shutdown()
 print("Kimi fixture tests passed")
+
+let partial = try KimiPayload.decode(Data(#"{"usages":{"limit_5h":{"used_ratio":0.2},"limit_month_code":{"used_ratio":null}}}"#.utf8))
+check(partial.rateLimitsByLimitId?["kimi-month-code"]?.primary != nil,"returned unknown Kimi model must remain selectable")
+check(partial.rateLimitsByLimitId?["kimi-month-code"]?.primary?.remaining == nil,"unknown Kimi ratio must not become another model quota")

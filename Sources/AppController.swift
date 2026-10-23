@@ -58,7 +58,12 @@ final class AppController: NSObject, NSApplicationDelegate {
         UserDefaults.standard.set(periods[(index + 1) % periods.count].rawValue, forKey: "quotaPeriod." + selectedProvider.rawValue)
         render(); writeDiagnostics()
     }
-    private var reading: ProviderReading { readings[selectedProvider]! }
+    private func reading(for provider: QuotaProviderID) -> ProviderReading {
+        var value = readings[provider]!
+        value.modelID = displaySelection.model(for:provider)
+        return value
+    }
+    private var reading: ProviderReading { reading(for:selectedProvider) }
     private var snapshot: QuotaSnapshot? { reading.snapshot }
     private var lastSuccess: Date? { reading.lastSuccess }
     private var errorMessage: String? { reading.error }
@@ -342,11 +347,12 @@ final class AppController: NSObject, NSApplicationDelegate {
         // Only non-identifying operational state, no account ID or authentication data.
         var providers: [String: Any] = [:]
         for provider in QuotaProviderID.allCases {
-            let entry = readings[provider]!
+            let entry = reading(for:provider)
             var value: [String: Any] = ["successfulRefreshes": entry.successes, "refreshing": entry.refreshing]
             let period = entry.period(for: provider, preferred: preferredPeriod(for: provider))
             value["period"] = period?.rawValue ?? "unknown"
             if let remaining = entry.window(for: provider, period: period)?.remaining { value["remaining"] = remaining }
+            if let model = entry.selectedModel { value["model"] = model.name }
             if let date = entry.lastSuccess { value["lastSuccess"] = ISO8601DateFormatter().string(from: date) }
             if let error = entry.error { value["error"] = error }
             providers[provider.rawValue] = value
@@ -385,7 +391,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         let value = remaining.map { String(format: "%.0f%%", floor($0)) + (errorMessage == nil ? "" : "!") } ?? (refreshing ? "···" : "—")
         capsule.provider = selectedProvider
         capsule.text = value
-        let title = L("%@ %@ 剩余额度 %@",selectedProvider.title + (selectedProvider == .antigravity ? " Gemini" : ""),capsule.periodText,value) + (errorMessage == nil ? "" : L("，查询失败或数据过期"))
+        let title = L("%@ %@ 剩余额度 %@",selectedProvider.title + (reading.selectedModel.map { " · " + $0.name } ?? (selectedProvider == .antigravity ? " Gemini" : "")),capsule.periodText,value) + (errorMessage == nil ? "" : L("，查询失败或数据过期"))
         capsule.detailButton.setAccessibilityLabel(title + L("，打开详情"))
         capsule.detailButton.toolTip = title
         let periodHelp = L("当前 ") + capsule.periodText + (capsule.canSwitchPeriod ? L("，点击切换额度周期") : L("，暂无其他有效周期"))
@@ -427,6 +433,10 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
     private func officialDetails() -> NSStackView {
         OfficialQuotaView.build(provider:selectedProvider,reading:reading,displayedPeriod:displayedPeriod,
+            selectModel:{ id in
+                self.displaySelection.selectModel(id,for:self.selectedProvider)
+                self.render(); self.writeDiagnostics()
+            },
             authorize:{
                 if self.selectedProvider == .claude { self.authorizeClaude() }
                 else if self.selectedProvider == .codebuddy { self.authorizeCodeBuddy() }
