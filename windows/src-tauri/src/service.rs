@@ -56,6 +56,7 @@ pub struct Service {
     pub state: Snapshot,
     epoch: u64,
     pub credential_generation: Option<String>,
+    cooldown: Option<AppError>,
 }
 impl Service {
     pub fn new(preferences: Preferences) -> Self {
@@ -70,6 +71,7 @@ impl Service {
             },
             epoch: 0,
             credential_generation: None,
+            cooldown: None,
         }
     }
     pub fn snapshot(&self) -> Snapshot {
@@ -89,6 +91,7 @@ impl Service {
         self.state.preferences.source = source.into();
         self.state.reading = Reading::default();
         self.credential_generation = None;
+        self.cooldown = None;
         Ok(())
     }
     pub fn begin(&mut self) -> Option<Request> {
@@ -102,6 +105,11 @@ impl Service {
             epoch: self.epoch,
         })
     }
+    pub fn record_rate_limit(&mut self, request: &Request, error: &AppError) {
+        if self.current(request) && error.code == "rate_limited" {
+            self.cooldown = Some(error.clone());
+        }
+    }
     pub fn finish(&mut self, request: Request, result: Result<Data, AppError>) -> bool {
         if !self.current(&request) {
             return false;
@@ -112,8 +120,12 @@ impl Service {
                 self.state.reading.data = Some(data);
                 self.state.reading.updated = Some(now());
                 self.state.reading.error = None;
+                self.cooldown = None;
             }
-            Err(error) => self.state.reading.error = Some(error),
+            Err(error) => {
+                self.record_rate_limit(&request, &error);
+                self.state.reading.error = Some(error);
+            }
         }
         true
     }
@@ -121,6 +133,7 @@ impl Service {
         self.state.reading.data = None;
         self.state.reading.updated = None;
         self.credential_generation = None;
+        self.cooldown = None;
         self.state.reading.error = None;
     }
     pub fn validate_credential(&mut self, generation: &str) -> Option<AppError> {
@@ -128,9 +141,7 @@ impl Service {
             self.credentials_changed();
             self.credential_generation = Some(generation.into());
         }
-        self.state
-            .reading
-            .error
+        self.cooldown
             .as_ref()
             .filter(|e| e.retry_at.is_some_and(|t| t > now()))
             .cloned()

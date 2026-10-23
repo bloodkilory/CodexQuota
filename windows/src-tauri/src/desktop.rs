@@ -76,6 +76,13 @@ async fn poll(backend: Backend, app: tauri::AppHandle) {
                 } else {
                     deepseek::fetch(&credential).await
                 };
+                if let Err(error) = &value {
+                    backend
+                        .service
+                        .lock()
+                        .unwrap()
+                        .record_rate_limit(&request, error);
+                }
                 match cc_switch::resolve(&directory, id) {
                     Ok(current) if current.generation == credential.generation => {
                         value.map(Data::Balance)

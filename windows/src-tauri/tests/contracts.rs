@@ -199,3 +199,39 @@ fn unchanged_credential_keeps_cooldown_but_new_credential_does_not() {
     assert!(service.validate_credential("new-generation").is_none());
     assert!(service.snapshot().reading.error.is_none());
 }
+#[test]
+fn database_busy_preserves_retry_after_for_the_same_credential() {
+    use quotanest_windows::service::{Preferences, Service};
+    let (dir, _) = store();
+    let mut service = Service::new(Preferences::defaults(dir.path()));
+    service.validate_credential("same-generation");
+    let request = service.begin().unwrap();
+    service.finish(
+        request,
+        Err(models::AppError {
+            code: "rate_limited".into(),
+            retry_at: Some(models::now() + 3600),
+        }),
+    );
+    let request = service.begin().unwrap();
+    service.finish(request, Err(models::AppError::new("source_busy")));
+    assert!(service.validate_credential("same-generation").is_some());
+    assert!(service.validate_credential("new-generation").is_none());
+}
+
+#[test]
+fn fresh_rate_limit_survives_post_response_database_busy() {
+    use quotanest_windows::service::{Preferences, Service};
+    let (dir, _) = store();
+    let mut service = Service::new(Preferences::defaults(dir.path()));
+    service.validate_credential("same-generation");
+    let request = service.begin().unwrap();
+    let error = models::AppError {
+        code: "rate_limited".into(),
+        retry_at: Some(models::now() + 3600),
+    };
+    service.record_rate_limit(&request, &error);
+    service.finish(request, Err(models::AppError::new("source_busy")));
+    assert!(service.validate_credential("same-generation").is_some());
+    assert!(service.validate_credential("new-generation").is_none());
+}
