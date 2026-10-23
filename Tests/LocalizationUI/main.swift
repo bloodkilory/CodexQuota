@@ -2,6 +2,28 @@ import AppKit
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
+func nativeSnapshot(_ content: NSView, name: String, dark: Bool) {
+    let previousAppearance = app.appearance
+    app.appearance = NSAppearance(named:dark ? .darkAqua : .aqua)
+    defer { app.appearance = previousAppearance }
+    let anchor = NSView(frame:NSRect(x:0,y:0,width:30,height:22))
+    let host = NSWindow(contentRect:NSRect(x:400,y:500,width:30,height:22),styleMask:.borderless,backing:.buffered,defer:false)
+    host.contentView = anchor; host.orderFront(nil)
+    defer { host.orderOut(nil) }
+    let scroll = NSScrollView(frame:content.bounds); scroll.drawsBackground = false; scroll.documentView = content
+    let controller = NSViewController(); controller.view = GlassAppearance.wrap(scroll,size:scroll.frame.size)
+    let popover = NSPopover(); popover.animates = false; popover.contentViewController = controller; popover.contentSize = scroll.frame.size
+    popover.show(relativeTo:anchor.bounds,of:anchor,preferredEdge:.minY)
+    defer { popover.performClose(nil) }
+    RunLoop.current.run(until:Date(timeIntervalSinceNow:0.05))
+    let surface = controller.view.window!.contentView!.superview!
+    controller.view.window!.layoutIfNeeded(); surface.layoutSubtreeIfNeeded()
+    surface.effectiveAppearance.performAsCurrentDrawingAppearance {
+        let bitmap = surface.bitmapImageRepForCachingDisplay(in:surface.bounds)!
+        surface.cacheDisplay(in:surface.bounds,to:bitmap)
+        try! bitmap.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:".build/compact-native-" + name + ".png"))
+    }
+}
 let domain = "local.quotanest.source-ui." + UUID().uuidString
 let defaults = UserDefaults(suiteName:domain)!
 defer { defaults.removePersistentDomain(forName:domain) }
@@ -19,11 +41,12 @@ officialReading.lastSuccess = Date()
 for language in [InterfaceLanguage.chinese,.english] {
     useTestLanguage(language)
     var settingsOpened = false, refreshes = 0
+    var refreshedSources: [String?] = []
     var connections = [fixture,other]
-    let actions = ConnectedAccountsActions(select:{ selection.select($0) },refresh:{ _ in refreshes += 1 },settings:{ settingsOpened = true })
+    let actions = ConnectedAccountsActions(select:{ selection.select($0) },refresh:{ refreshedSources.append($0); refreshes += 1 },settings:{ settingsOpened = true })
     func view() -> NSStackView {
         let model = ConnectedAccountsPresentation(connections:connections,enabled:Set(connections.map(\.id)),readings:[fixture.id:reading],source:selection.source,currency:"CNY",sourceError:nil)
-        return ConnectedAccountsView.build(model,officialDetails:OfficialQuotaView.build(provider:selection.provider,reading:officialReading,displayedPeriod:.short,refresh:{ refreshes += 1 },authorize:{}),actions:actions)
+        return ConnectedAccountsView.build(model,officialDetails:OfficialQuotaView.build(provider:selection.provider,reading:officialReading,displayedPeriod:.short,authorize:{}),actions:actions)
     }
     func picker(_ view: NSView) -> DisplaySourcePicker { descendants(view).compactMap { $0 as? DisplaySourcePicker }.first! }
     let first = view()
@@ -31,8 +54,16 @@ for language in [InterfaceLanguage.chinese,.english] {
     let settingsButton = descendants(first).first { $0.identifier?.rawValue == "settings" } as! NSButton
     assert(settingsButton.title.isEmpty && settingsButton.image != nil,"settings is an icon-only action")
     assert(settingsButton.toolTip == expectedSettings && settingsButton.accessibilityLabel() == expectedSettings,"settings keeps a localized tooltip and accessible name")
-    assert(descendants(first).compactMap { ($0 as? NSTextField)?.stringValue }.contains(language == .english ? "Menu bar shows" : "菜单栏显示"))
-    assert(first.arrangedSubviews.firstIndex(of:picker(first)) == 2)
+    let refreshButtons = descendants(first).compactMap { $0 as? NSButton }.filter { $0.identifier?.rawValue == "refresh-official" }
+    assert(refreshButtons.count == 1 && refreshButtons[0].title.isEmpty && refreshButtons[0].image != nil,"official refresh is one icon-only header action")
+    assert(refreshButtons[0].toolTip == (language == .english ? "Refresh now" : "立即刷新"))
+    assert(refreshButtons[0].accessibilityLabel() == refreshButtons[0].toolTip)
+    let busyOfficial = ConnectedAccountsView.build(ConnectedAccountsPresentation(connections:[],enabled:[],readings:[:],source:.official(.codex),currency:nil,sourceError:nil),officialRefreshing:true,actions:actions)
+    let busyRefresh = descendants(busyOfficial).first { $0.identifier?.rawValue == "refresh-official" } as! NSButton
+    assert(!busyRefresh.isEnabled && busyRefresh.toolTip == L("正在刷新…"))
+    busyRefresh.performClick(nil); assert(refreshes == 0,"in-flight official refresh cannot repeat")
+    assert(picker(first).accessibilityLabel() == (language == .english ? "Menu bar shows" : "菜单栏显示"))
+    assert(first.arrangedSubviews.firstIndex(of:picker(first)) == 1)
     assert(descendants(first).filter { $0 is NSPopUpButton }.count == 1)
     assert(picker(first).numberOfItems == 9,"8 official sources and only supported connected API sources")
     assert(picker(first).itemTitles.last!.hasSuffix(fixture.name),"user names must not be translated")
@@ -44,11 +75,18 @@ for language in [InterfaceLanguage.chinese,.english] {
     choose(0); assert(selection.source == .official(.codex) && selection.accountID == nil)
     choose(8); assert(selection.source == .api(fixture.id) && selection.accountID == fixture.id)
     let api = view()
+    let removed = ConnectedAccountsView.build(ConnectedAccountsPresentation(connections:[],enabled:[],readings:[fixture.id:reading],source:.api(fixture.id),currency:nil,sourceError:nil),actions:actions)
+    assert(!(descendants(removed).first { $0.identifier?.rawValue == "refresh-account" } as! NSButton).isEnabled)
+    var inFlight = reading; inFlight.refreshing = true
+    let busyAPI = ConnectedAccountsView.build(ConnectedAccountsPresentation(connections:[fixture],enabled:[fixture.id],readings:[fixture.id:inFlight],source:.api(fixture.id),currency:nil,sourceError:nil),actions:actions)
+    let busyAPIRefresh = descendants(busyAPI).first { $0.identifier?.rawValue == "refresh-account" } as! NSButton
+    assert(!busyAPIRefresh.isEnabled && busyAPIRefresh.toolTip == L("正在刷新…") && busyAPIRefresh.accessibilityLabel() == L("正在刷新…"))
+    busyAPIRefresh.performClick(nil); assert(refreshes == 0)
     let strings = descendants(api).compactMap { ($0 as? NSTextField)?.stringValue }
-    assert(strings.contains(fixture.name) && strings.contains("CNY 18.60"))
+    assert(picker(api).toolTip!.contains(fixture.name) && strings.contains("CNY 18.60"))
     assert(strings.contains(L("DeepSeek 凭据失效；请在 CC Switch 检查")))
     let refresh = descendants(api).first { $0.identifier?.rawValue == "refresh-account" } as! NSButton
-    refresh.performClick(nil); assert(refreshes == 1)
+    refresh.performClick(nil); assert(refreshes == 1 && refreshedSources.last! == fixture.id)
     (descendants(api).first { $0.identifier?.rawValue == "settings" } as! NSButton).performClick(nil)
     assert(settingsOpened && selection.source == .api(fixture.id))
     connections.append(CCSwitchConnection(id:"codex|new",providerID:"new",harness:"codex",name:"New",origin:fixture.origin,configurationRole:"默认配置",supportsBalance:true))
@@ -65,34 +103,45 @@ for language in [InterfaceLanguage.chinese,.english] {
     selection.select(source)
     let content = view(); content.layoutSubtreeIfNeeded()
     let height = content.fittingSize.height
-    content.frame = NSRect(x:0,y:0,width:380,height:height)
+    content.frame = NSRect(x:0,y:0,width:240,height:height)
     let surface = GlassAppearance.wrap(content,size:content.frame.size)
     let window = NSWindow(contentRect:surface.bounds,styleMask:.borderless,backing:.buffered,defer:false)
     window.appearance = NSAppearance(named:.aqua); window.contentView = surface
     window.layoutIfNeeded(); surface.layoutSubtreeIfNeeded()
     for child in descendants(content) where child is NSControl {
         let bounds = child.convert(child.bounds,to:content)
-        assert(bounds.minX >= -1 && bounds.maxX <= 381,"controls must fit the 380-point popover")
+        assert(bounds.minX >= -1 && bounds.maxX <= 241,"controls must fit the compact 240-point popover")
     }
     assert(picker(content).convert(picker(content).bounds,to:content).maxY > height - 130)
     let gear = descendants(content).first { $0.identifier?.rawValue == "settings" }!
     let title = descendants(content).compactMap { $0 as? NSTextField }.first { $0.stringValue == L("余度 QuotaNest") }!
     let gearBounds = gear.convert(gear.bounds,to:content), titleBounds = title.convert(title.bounds,to:content)
     assert(gearBounds.minX > titleBounds.maxX && abs(gearBounds.midY - titleBounds.midY) < 1,"settings sits to the right of the title on the same row")
-    assert(gearBounds.maxX > 340 && gearBounds.maxY > height - 55,"settings stays in the top-right corner")
+    assert(gearBounds.maxX > 210 && gearBounds.maxY > height - 35,"settings stays in the top-right corner")
+    let refreshID = selection.accountID == nil ? "refresh-official" : "refresh-account"
+    let refreshIcon = descendants(content).first { $0.identifier?.rawValue == refreshID } as! NSButton
+    let refreshBounds = refreshIcon.convert(refreshIcon.bounds,to:content)
+    assert(refreshIcon.title.isEmpty && refreshIcon.image != nil && refreshIcon.toolTip == L("立即刷新"))
+    assert(refreshBounds.maxX < gearBounds.minX && abs(refreshBounds.midY - gearBounds.midY) < 1,"refresh sits immediately left of settings in the title row")
+    assert(descendants(content).compactMap { $0 as? NSButton }.allSatisfy { $0.title != L("立即刷新") },"no bottom text refresh button remains")
     if case .official = source {
         let labels = descendants(content).compactMap { ($0 as? NSTextField)?.stringValue }
         assert(labels.contains(L("%@    剩余 %@",L("%@ 小时额度","5"),"76.0%")))
-        assert(descendants(content).compactMap { $0 as? NSButton }.filter { $0.title == L("立即刷新") }.count == 1)
+        assert(labels.contains(L("Credits 余额：%@","5.50")))
+        if source == .official(.codex) { assert(descendants(content).contains { $0.toolTip?.contains("fixture") == true },"the plan/source metadata remains available as a tooltip") }
+        let before = refreshes
+        refreshIcon.performClick(nil); assert(refreshes == before + 1 && refreshedSources.last! == nil)
+        if source == .official(.codex) { assert(height >= 110 && height <= 160,"ordinary successful Codex details remain compact: \(language) height \(height)") }
     }
     surface.effectiveAppearance.performAsCurrentDrawingAppearance {
         let bitmap = surface.bitmapImageRepForCachingDisplay(in:surface.bounds)!
         surface.cacheDisplay(in:surface.bounds,to:bitmap)
         try! bitmap.representation(using:.png,properties:[:])!.write(to:URL(fileURLWithPath:".build/bilingual-" + language.rawValue + "-" + (selection.accountID == nil ? selection.provider.rawValue : "api") + ".png"))
     }
+    nativeSnapshot(content,name:language.rawValue + "-" + (selection.accountID == nil ? selection.provider.rawValue : "api"),dark:language == .chinese)
     }
 }
-print("PASS bilingual native source picker, Codex→API→Claude, settings/new-source stability, removed-source recovery and 380-point rendering")
+print("PASS bilingual native source picker, Codex→API→Claude, settings/new-source stability, removed-source recovery and 240-point rendering")
 for language in [InterfaceLanguage.chinese,.english] {
     useTestLanguage(language)
     let original = selection.source
@@ -100,6 +149,7 @@ for language in [InterfaceLanguage.chinese,.english] {
     let actions = SettingsActions(back:{ wentBack = true },language:{ Localization.shared.preference = $0 },connect:{ connected = true },checkUpdate:{ checked = true },installUpdate:{ installed = true },login:{ login = $0 },quit:{ quit = true })
     let model = SettingsPresentation(connections:[fixture,other],enabled:[fixture.id,other.id],sourceError:nil,discovering:false,language:language,version:"1.8.0",updateState:.available("1.9.0"),previousStatus:UpdateInstallStatus(state:"installed",message:"已更新到 v%@",arguments:["1.8.0"]),availableVersion:"1.9.0",canInstall:true,loginEnabled:false)
     let content = SettingsView.build(model,actions:actions)
+    assert(content.fittingSize.width == 380,"settings retains its readable form width")
     let buttons = descendants(content).compactMap { $0 as? NSButton }
     for id in ["back-details","connect-source","check-updates","install-update","launch-at-login","quit"] { buttons.first { $0.identifier?.rawValue == id }!.performClick(nil) }
     assert(wentBack && connected && checked && installed && login == true && quit)
@@ -144,8 +194,43 @@ print("PASS duplicate user connection names retain independent source identities
 let namelessGroups = try QuotaSnapshot.decode(Data(#"{"rateLimitsByLimitId":{"group-alpha":{"primary":{"usedPercent":10,"windowDurationMins":300}},"group-beta":{"primary":{"usedPercent":20,"windowDurationMins":10080}}}}"#.utf8))
 for language in [InterfaceLanguage.english,.chinese] {
     useTestLanguage(language)
-    let details = OfficialQuotaView.build(provider:.codex,reading:ProviderReading(snapshot:namelessGroups),displayedPeriod:.short,refresh:{},authorize:{})
-    let headings = descendants(details).compactMap { $0 as? NSTextField }.filter { $0.font == NSFont.systemFont(ofSize:12,weight:.semibold) }.map(\.stringValue)
+    let details = OfficialQuotaView.build(provider:.codex,reading:ProviderReading(snapshot:namelessGroups),displayedPeriod:.short,authorize:{})
+    let headings = descendants(details).compactMap { $0 as? NSTextField }.filter { $0.font == NSFont.systemFont(ofSize:11,weight:.semibold) }.map(\.stringValue)
     assert(headings == ["group-alpha","group-beta"],"nameless official quota groups retain distinct original map-key headings in each language")
 }
 print("PASS nameless official quota groups retain original distinct headings in English and Chinese")
+
+for language in [InterfaceLanguage.chinese,.english] {
+    useTestLanguage(language)
+    for provider in QuotaProviderID.allCases {
+        var failed = officialReading; failed.error = L("DeepSeek 凭据失效；请在 CC Switch 检查")
+        let details = OfficialQuotaView.build(provider:provider,reading:failed,displayedPeriod:.short,authorize:{})
+        let model = ConnectedAccountsPresentation(connections:[],enabled:[],readings:[:],source:.official(provider),currency:nil,sourceError:nil)
+        let root = ConnectedAccountsView.build(model,officialDetails:details,actions:ConnectedAccountsActions(select:{ _ in },refresh:{ _ in },settings:{}))
+        root.layoutSubtreeIfNeeded(); root.frame = NSRect(x:0,y:0,width:240,height:root.fittingSize.height)
+        let labels = descendants(root).compactMap { ($0 as? NSTextField)?.stringValue }
+        assert(labels.contains { $0.contains(failed.error!) && $0.contains(L("\n当前百分比为上次成功查询结果。")) },"failed official refresh keeps the complete error and stale warning")
+        for control in descendants(root) where control is NSControl {
+            let bounds = control.convert(control.bounds,to:root)
+            assert(bounds.minX >= -1 && bounds.maxX <= 241,"every official provider error/action fits the compact width")
+        }
+    }
+    let details = OfficialQuotaView.build(provider:.codex,reading:ProviderReading(snapshot:namelessGroups),displayedPeriod:.short,authorize:{})
+    let labels = descendants(details).compactMap { ($0 as? NSTextField)?.stringValue }
+    assert(labels.contains(L("%@    剩余 %@",L("%@ 小时额度","5"),"90.0%")))
+    assert(labels.contains(L("%@    剩余 %@",L("%@ 天额度","7"),"80.0%")))
+    assert(labels.filter { $0 == L("重置时间：未提供") }.count == 2,"each quota group keeps its own reset status")
+}
+print("PASS all eight official provider errors/actions fit 240 points; multiple quota groups and reset states remain visible in both languages")
+
+let multiWindow = try QuotaSnapshot.decode(Data(#"{"rateLimitsByLimitId":{"group-a":{"limitName":"Alpha","primary":{"usedPercent":10,"windowDurationMins":300,"resetsAt":1},"secondary":{"usedPercent":30,"windowDurationMins":10080},"credits":{"balance":"7.25","unlimited":false}},"group-b":{"limitName":"Beta","primary":{"usedPercent":20,"windowDurationMins":1440}}}}"#.utf8))
+for language in [InterfaceLanguage.chinese,.english] {
+    useTestLanguage(language)
+    let details = OfficialQuotaView.build(provider:.codex,reading:ProviderReading(snapshot:multiWindow),displayedPeriod:.weekly,authorize:{})
+    let labels = descendants(details).compactMap { ($0 as? NSTextField)?.stringValue }
+    for value in ["Alpha","Beta",L("Credits 余额：%@","7.25"),L("%@    剩余 %@",L("%@ 小时额度","5"),"90.0%"),L("%@    剩余 %@",L("%@ 天额度","7"),"70.0%"),L("%@    剩余 %@",L("%@ 天额度","1"),"80.0%")] { assert(labels.contains(value)) }
+    assert(descendants(details).filter { $0 is NSProgressIndicator }.count == 3,"all windows remain visible, beyond the selected capsule period")
+    let formatter = DateFormatter(); formatter.dateFormat = "MM-dd HH:mm"
+    assert(labels.contains(L("重置：%@ · 等待服务更新",formatter.string(from:Date(timeIntervalSince1970:1)))))
+}
+print("PASS compact details retain multiple windows, credits and elapsed-reset status in both languages")

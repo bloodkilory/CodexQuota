@@ -6,8 +6,8 @@ let fixture = CCSwitchConnection(id:"claude|fixture",providerID:"fixture",harnes
 let payload = try DeepSeekBalance.decode(Data(#"{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"18.60","granted_balance":"3.60","topped_up_balance":"15.00"}]}"#.utf8))
 var reading = ConnectedAccountReading()
 _ = reading.complete(.success(payload),generation:reading.begin()!)
-var refreshed: String?, settings = false
-let actions = ConnectedAccountsActions(select:{ _ in },refresh:{ refreshed = $0 },settings:{ settings = true })
+var refreshed: String?, settings = false, refreshCount = 0
+let actions = ConnectedAccountsActions(select:{ _ in },refresh:{ refreshed = $0; refreshCount += 1 },settings:{ settings = true })
 let model = ConnectedAccountsPresentation(connections:[fixture],enabled:[fixture.id],readings:[fixture.id:reading],source:.api(fixture.id),currency:nil,sourceError:nil)
 func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
 let root = ConnectedAccountsView.build(model,actions:actions)
@@ -19,22 +19,24 @@ assert(refreshed == fixture.id && settings)
 print("PASS native account actions: refresh and settings")
 var busy = model; busy.readings[fixture.id]?.refreshing = true
 let busyView = ConnectedAccountsView.build(busy,actions:actions)
-assert((descendants(busyView).first { $0.identifier?.rawValue == "refresh-account" } as! NSButton).isEnabled == false)
+let busyRefresh = descendants(busyView).first { $0.identifier?.rawValue == "refresh-account" } as! NSButton
+assert(!busyRefresh.isEnabled && busyRefresh.toolTip == L("正在刷新…"))
+busyRefresh.performClick(nil); assert(refreshCount == 1)
 print("PASS native refresh disabled during in-flight query")
 for dark in [false,true] {
     app.appearance = NSAppearance(named:dark ? .darkAqua : .aqua)
     let content = ConnectedAccountsView.build(model,actions:actions)
     content.layoutSubtreeIfNeeded()
     let height = content.fittingSize.height
-    assert(height > 300 && height < 750)
-    content.frame = NSRect(x:0,y:0,width:380,height:height)
+    assert(height > 100 && height < 220,"successful API balance stays compact")
+    content.frame = NSRect(x:0,y:0,width:240,height:height)
     let surface = GlassAppearance.wrap(content,size:content.frame.size)
     assert(!(surface is NSVisualEffectView),"NSPopover owns the backdrop; a second effect view produces mismatched corner edges")
     assert(surface.layer?.cornerRadius ?? 0 == 0,"popover content must not draw its own rounded boundary")
     let window = NSWindow(contentRect:surface.bounds,styleMask:[.borderless],backing:.buffered,defer:false)
     window.appearance = app.appearance; window.contentView = surface
     window.layoutIfNeeded(); surface.layoutSubtreeIfNeeded()
-    assert(content.frame.width == 380)
+    assert(content.frame.width == 240)
     surface.effectiveAppearance.performAsCurrentDrawingAppearance {
         if let bitmap = surface.bitmapImageRepForCachingDisplay(in:surface.bounds) {
             surface.cacheDisplay(in:surface.bounds,to:bitmap)
@@ -47,4 +49,4 @@ for dark in [false,true] {
         } else { fatalError("native snapshot unavailable") }
     }
 }
-print("PASS native account layout: 380-point surface, light/dark snapshots with synthetic balances")
+print("PASS native account layout: 240-point surface, light/dark snapshots with synthetic balances")

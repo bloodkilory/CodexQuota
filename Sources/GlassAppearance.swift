@@ -14,14 +14,14 @@ enum GlassAppearance {
     }
     static func card(_ content: NSView, width: CGFloat, height: CGFloat) -> NSView {
         let box = NSBox(); box.boxType = .custom; box.titlePosition = .noTitle
-        box.cornerRadius = 16; box.borderWidth = 0.5
+        box.cornerRadius = 10; box.borderWidth = 0.5
         box.borderColor = .separatorColor
         box.fillColor = NSColor(name:nil) { appearance in
             NSColor(white:isDark(appearance) ? 0.12 : 1,alpha:NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency ? 1 : 0.65)
         }
-        box.contentViewMargins = NSSize(width:14,height:14); box.contentView = content
+        box.contentViewMargins = NSSize(width:8,height:8); box.contentView = content
         box.widthAnchor.constraint(equalToConstant:width).isActive = true
-        box.heightAnchor.constraint(equalToConstant:height + 28).isActive = true
+        box.heightAnchor.constraint(equalToConstant:height + 16).isActive = true
         return box
     }
 }

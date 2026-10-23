@@ -403,17 +403,18 @@ final class AppController: NSObject, NSApplicationDelegate {
         if showingSettings { content = settingsContent() }
         else {
             let model = ConnectedAccountsPresentation(connections:connections,enabled:linkedConnections,readings:accountReadings,source:previewProvider.map { .official($0) } ?? displaySelection.source,currency:pinnedConnection.flatMap { UserDefaults.standard.string(forKey:"balanceCurrency." + $0) },sourceError:sourceError)
-            content = ConnectedAccountsView.build(model,officialDetails:pinnedConnection == nil ? officialDetails() : nil,actions:ConnectedAccountsActions(
+            content = ConnectedAccountsView.build(model,officialDetails:pinnedConnection == nil ? officialDetails() : nil,officialRefreshing:reading.refreshing,actions:ConnectedAccountsActions(
                 select:{ self.selectSource($0) },
-                refresh:{ self.refreshAccount($0) },
+                refresh:{ if let id = $0 { self.refreshAccount(id) } else { self.manualRefresh() } },
                 settings:{ self.showingSettings = true; self.buildPopover() }))
         }
         let focused = (popover.contentViewController?.view.window?.firstResponder as? NSView)?.identifier
         content.layoutSubtreeIfNeeded()
-        let height = max(240,content.fittingSize.height)
-        let maxHeight = max(240,min(650,(status.button?.window?.screen?.visibleFrame.height ?? 730) - 80))
-        content.frame = NSRect(x:0,y:0,width:380,height:height)
-        let scroll = NSScrollView(frame:NSRect(x:0,y:0,width:380,height:min(height,maxHeight)))
+        let height = content.fittingSize.height
+        let width: CGFloat = showingSettings ? 380 : ConnectedAccountsView.width
+        let maxHeight = min(650,(status.button?.window?.screen?.visibleFrame.height ?? 730) - 80)
+        content.frame = NSRect(x:0,y:0,width:width,height:height)
+        let scroll = NSScrollView(frame:NSRect(x:0,y:0,width:width,height:min(height,maxHeight)))
         scroll.drawsBackground = false; scroll.hasVerticalScroller = height > maxHeight; scroll.documentView = content
         scroll.contentView.scroll(to:NSPoint(x:0,y:max(0,height - scroll.frame.height)))
         let controller = NSViewController(); controller.view = GlassAppearance.wrap(scroll,size:scroll.frame.size)
@@ -426,7 +427,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
     private func officialDetails() -> NSStackView {
         OfficialQuotaView.build(provider:selectedProvider,reading:reading,displayedPeriod:displayedPeriod,
-            refresh:{ self.manualRefresh() },authorize:{
+            authorize:{
                 if self.selectedProvider == .claude { self.authorizeClaude() }
                 else if self.selectedProvider == .codebuddy { self.authorizeCodeBuddy() }
             })

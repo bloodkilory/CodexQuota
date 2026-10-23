@@ -23,7 +23,7 @@ struct ConnectedAccountsPresentation {
 
 struct ConnectedAccountsActions {
     let select: (DisplaySource) -> Void
-    let refresh: (String) -> Void
+    let refresh: (String?) -> Void
     let settings: () -> Void
 }
 
@@ -38,7 +38,8 @@ final class DisplaySourcePicker: NSPopUpButton {
         selectItem(at:sources.firstIndex(of:selected) ?? 0)
         target = self; action = #selector(selectedSource)
         identifier = NSUserInterfaceItemIdentifier("display-source")
-        widthAnchor.constraint(equalToConstant:344).isActive = true
+        widthAnchor.constraint(equalToConstant:220).isActive = true
+        controlSize = .small; font = .systemFont(ofSize:11)
         setAccessibilityLabel(L("菜单栏显示")); toolTip = titleOfSelectedItem
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -46,7 +47,7 @@ final class DisplaySourcePicker: NSPopUpButton {
 }
 
 enum ConnectedAccountsView {
-    static let width: CGFloat = 380
+    static let width: CGFloat = 240
     static func text(_ value: String, size: CGFloat = 12, secondary: Bool = false, bold: Bool = false, width: CGFloat = 344) -> NSTextField {
         let field = NSTextField(wrappingLabelWithString:value)
         field.font = .systemFont(ofSize:size,weight:bold ? .semibold : .regular)
@@ -61,22 +62,26 @@ enum ConnectedAccountsView {
         view.widthAnchor.constraint(equalToConstant:width).isActive = true
         return view
     }
-    static func build(_ model: ConnectedAccountsPresentation, officialDetails: NSView? = nil, actions: ConnectedAccountsActions) -> NSStackView {
-        let root = stack(width:width,spacing:12)
-        root.edgeInsets = NSEdgeInsets(top:18,left:18,bottom:16,right:18)
-        let header = NSStackView(); header.orientation = .horizontal; header.alignment = .centerY; header.spacing = 12
-        header.widthAnchor.constraint(equalToConstant:344).isActive = true
-        header.addArrangedSubview(text(L("余度 QuotaNest"),size:18,bold:true,width:304))
-        let settings = AccountActionButton("",id:"settings",handler:actions.settings)
-        settings.image = NSImage(systemSymbolName:"gearshape",accessibilityDescription:L("设置"))
-        settings.imagePosition = .imageOnly; settings.isBordered = false
-        settings.toolTip = L("设置"); settings.setAccessibilityLabel(L("设置"))
-        settings.widthAnchor.constraint(equalToConstant:28).isActive = true
-        settings.heightAnchor.constraint(equalToConstant:28).isActive = true
-        header.addArrangedSubview(settings)
-        root.addArrangedSubview(header)
-        root.addArrangedSubview(text(L("菜单栏显示"),size:11,secondary:true))
+    static func build(_ model: ConnectedAccountsPresentation, officialDetails: NSView? = nil, officialRefreshing: Bool = false, actions: ConnectedAccountsActions) -> NSStackView {
+        let root = stack(width:width,spacing:5)
+        root.edgeInsets = NSEdgeInsets(top:8,left:10,bottom:8,right:10)
         let accounts = model.connections.filter { model.enabled.contains($0.id) && $0.supportsBalance }
+        let refreshing: Bool, refreshID: String, accountID: String?, canRefresh: Bool
+        switch model.source {
+        case .official:
+            refreshing = officialRefreshing; refreshID = "refresh-official"; accountID = nil; canRefresh = true
+        case .api(let id):
+            refreshing = model.readings[id]?.refreshing ?? false; refreshID = "refresh-account"; accountID = id
+            canRefresh = accounts.contains { $0.id == id }
+        }
+        let header = NSStackView(); header.orientation = .horizontal; header.alignment = .centerY; header.spacing = 6
+        header.widthAnchor.constraint(equalToConstant:220).isActive = true
+        header.addArrangedSubview(text(L("余度 QuotaNest"),size:12,bold:true,width:164))
+        let refresh = icon("arrow.clockwise",label:L(refreshing ? "正在刷新…" : "立即刷新"),id:refreshID) { actions.refresh(accountID) }
+        refresh.isEnabled = canRefresh && !refreshing
+        header.addArrangedSubview(refresh)
+        header.addArrangedSubview(icon("gearshape",label:L("设置"),id:"settings",handler:actions.settings))
+        root.addArrangedSubview(header)
         var sources = QuotaProviderID.allCases.map { DisplaySource.official($0) } + accounts.map { .api($0.id) }
         var titles = QuotaProviderID.allCases.map { $0.title + " · " + L("套餐余量") + ($0.experimental ? L(" · 实验") : "") }
         titles += accounts.map { "DeepSeek · " + L("API 余额") + " · " + ($0.harness == "claude" ? "Claude Code" : "Codex") + " · " + $0.displayName }
@@ -88,32 +93,35 @@ enum ConnectedAccountsView {
         case .api(let id):
             let connection = accounts.first { $0.id == id }
             let reading = connection == nil ? ConnectedAccountReading() : model.readings[id] ?? ConnectedAccountReading()
-            let card = stack(width:316,spacing:9)
-            card.addArrangedSubview(text("DeepSeek · " + L("API 余额"),size:14,bold:true,width:316))
-            if let connection {
-                card.addArrangedSubview(text(connection.displayName,size:12,bold:true,width:316))
-                card.addArrangedSubview(text(L("来自 CC Switch · ") + (connection.harness == "claude" ? "Claude Code" : "Codex"),size:11,secondary:true,width:316))
-            } else { card.addArrangedSubview(text(L("来源已移除或不再支持，请选择其他显示来源"),size:11,secondary:true,width:316)) }
+            let card = stack(width:204,spacing:3)
+            card.toolTip = connection.map { $0.displayName + "\n" + L("来自 CC Switch · ") + ($0.harness == "claude" ? "Claude Code" : "Codex") }
+            if connection == nil { card.addArrangedSubview(text(L("来源已移除或不再支持，请选择其他显示来源"),size:10,secondary:true,width:204)) }
             let wallets = reading.balance?.wallets ?? []
             let wallet = wallets.first { $0.currency == model.currency } ?? wallets.first
             if let wallet {
-                card.addArrangedSubview(text(wallet.displayAmount,size:28,bold:true,width:316))
-                card.addArrangedSubview(text(L(reading.error == nil ? "可用余额" : "上次成功余额 · 当前数据已过期"),size:11,secondary:true,width:316))
-                card.addArrangedSubview(text(L("充值余额    ") + wallet.currency + " " + DeepSeekWallet.amount(wallet.toppedUp),width:316))
-                card.addArrangedSubview(text(L("赠送余额    ") + wallet.currency + " " + DeepSeekWallet.amount(wallet.granted),width:316))
-                for other in wallets where other.currency != wallet.currency { card.addArrangedSubview(text(L("另一币种    ") + other.displayAmount,size:11,secondary:true,width:316)) }
-                if reading.balance?.isAvailable == false { card.addArrangedSubview(text(L("官方接口标记当前余额不足以调用 API"),size:11,secondary:true,width:316)) }
-            } else { card.addArrangedSubview(text(reading.refreshing ? L("正在查询…") : "—",size:28,bold:true,width:316)) }
-            if let error = reading.error ?? model.sourceError { card.addArrangedSubview(text(error,size:11,secondary:true,width:316)) }
+                card.addArrangedSubview(text(wallet.displayAmount,size:20,bold:true,width:204))
+                if reading.error != nil { card.addArrangedSubview(text(L("上次成功余额 · 当前数据已过期"),size:10,secondary:true,width:204)) }
+                card.addArrangedSubview(text(L("充值余额    ") + wallet.currency + " " + DeepSeekWallet.amount(wallet.toppedUp),size:10,width:204))
+                card.addArrangedSubview(text(L("赠送余额    ") + wallet.currency + " " + DeepSeekWallet.amount(wallet.granted),size:10,width:204))
+                for other in wallets where other.currency != wallet.currency { card.addArrangedSubview(text(L("另一币种    ") + other.displayAmount,size:10,secondary:true,width:204)) }
+                if reading.balance?.isAvailable == false { card.addArrangedSubview(text(L("官方接口标记当前余额不足以调用 API"),size:10,secondary:true,width:204)) }
+            } else { card.addArrangedSubview(text(reading.refreshing ? L("正在查询…") : "—",size:20,bold:true,width:204)) }
+            if let error = reading.error ?? model.sourceError { card.addArrangedSubview(text(error,size:10,secondary:true,width:204)) }
             let formatter = DateFormatter(); formatter.locale = Localization.shared.locale; formatter.timeStyle = .medium
             let time = reading.lastSuccess.map { formatter.string(from:$0) } ?? L("尚未成功")
-            card.addArrangedSubview(text(L("更新：") + time + L(" · 每 1 分钟检查"),size:11,secondary:true,width:316))
-            let refresh = AccountActionButton(L(reading.refreshing ? "正在刷新…" : "立即刷新"),id:"refresh-account") { actions.refresh(id) }
-            refresh.isEnabled = connection != nil && !reading.refreshing
-            card.addArrangedSubview(refresh)
+            card.addArrangedSubview(text(L("更新：") + time + L(" · 每 1 分钟检查"),size:10,secondary:true,width:204))
             card.layoutSubtreeIfNeeded()
-            root.addArrangedSubview(GlassAppearance.card(card,width:344,height:card.fittingSize.height))
+            root.addArrangedSubview(GlassAppearance.card(card,width:220,height:card.fittingSize.height))
         }
         return root
+    }
+    private static func icon(_ symbol: String, label: String, id: String, handler: @escaping () -> Void) -> NSButton {
+        let button = AccountActionButton("",id:id,handler:handler)
+        button.image = NSImage(systemSymbolName:symbol,accessibilityDescription:label)
+        button.imagePosition = .imageOnly; button.isBordered = false
+        button.toolTip = label; button.setAccessibilityLabel(label)
+        button.widthAnchor.constraint(equalToConstant:22).isActive = true
+        button.heightAnchor.constraint(equalToConstant:22).isActive = true
+        return button
     }
 }

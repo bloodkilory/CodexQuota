@@ -50,7 +50,7 @@ For an unreliable Clash TUN route, the app preference `codexHTTPSProxy` can poin
 
 The default follows macOS: Chinese for a Chinese system language, English otherwise. **Settings → Language → Follow system / 中文 / English** takes effect immediately, including cached readings and errors, and persists only in QuotaNest preferences. Provider names, user connection names, currencies and URLs retain their original values.
 
-The single **Menu bar shows** selector lists eight **Subscription quota** providers and connected supported DeepSeek **API balance** sources, identified by tool and original connection name. Selecting one changes both the capsule and details. There is one **Refresh now** action, no separate account selection or pin toggle. Settings holds connections, provenance, language, updates, launch at login and quit. Returning from Settings or connecting a new service keeps the current display. Removed or unsupported sources discard their old balances; choose an official provider from the same selector to recover.
+The single **Menu bar shows** selector lists eight **Subscription quota** providers and connected supported DeepSeek **API balance** sources, identified by tool and original connection name. Selecting one changes both the capsule and details. Details are 240 points wide, with refresh and settings icons in the title row; Settings keeps its 380-point form width. There is no separate account selection or pin toggle. Settings holds connections, provenance, language, updates, launch at login and quit. Returning from Settings or connecting a new service keeps the current display. Removed or unsupported sources discard their old balances; choose an official provider from the same selector to recover.
 
 ### Existing CC Switch connections and DeepSeek balances
 
@@ -62,7 +62,7 @@ The glass-style interface supports light/dark appearances and reduced transparen
 
 Select a provider in the popover: **Codex**, **Claude Code**, or **Antigravity**. The capsule reports the lowest remaining value among the selected period’s applicable windows (Codex uses its main bucket; Antigravity uses Gemini groups only). If Gemini quota is unavailable, Antigravity shows `—` rather than substituting another model. All model groups remain available in the popover. It is not an average across models. Reset times use your system time zone.
 
-Provider accents are teal for Codex, terracotta for Claude and blue for Antigravity. `!` means refresh failed and the value is stale; `—` means no valid data yet. The app also refreshes on launch and wake. Choose **Launch at login** in Settings, **Refresh now** in details, or **Quit QuotaNest** in Settings. After moving the installed app, toggle launch at login off and on to update its path.
+Provider accents are teal for Codex, terracotta for Claude and blue for Antigravity. `!` means refresh failed and the value is stale; `—` means no valid data yet. The app also refreshes on launch and wake. Choose **Launch at login** in Settings, the refresh icon to the left of Settings in details, or **Quit QuotaNest** in Settings. After moving the installed app, toggle launch at login off and on to update its path.
 
 ## Application updates
 
