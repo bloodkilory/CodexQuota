@@ -134,3 +134,11 @@ assert(duplicatePicker.numberOfItems == 10,"same-named connections must retain s
 duplicatePicker.selectItem(at:9); duplicatePicker.sendAction(duplicatePicker.action,to:duplicatePicker.target)
 assert(pickedDuplicate == .api(sameName.id))
 print("PASS duplicate user connection names retain independent source identities")
+let namelessGroups = try QuotaSnapshot.decode(Data(#"{"rateLimitsByLimitId":{"group-alpha":{"primary":{"usedPercent":10,"windowDurationMins":300}},"group-beta":{"primary":{"usedPercent":20,"windowDurationMins":10080}}}}"#.utf8))
+for language in [InterfaceLanguage.english,.chinese] {
+    useTestLanguage(language)
+    let details = OfficialQuotaView.build(provider:.codex,reading:ProviderReading(snapshot:namelessGroups),displayedPeriod:.short,refresh:{},authorize:{})
+    let headings = descendants(details).compactMap { $0 as? NSTextField }.filter { $0.font == NSFont.systemFont(ofSize:12,weight:.semibold) }.map(\.stringValue)
+    assert(headings == ["group-alpha","group-beta"],"nameless official quota groups retain distinct original map-key headings in each language")
+}
+print("PASS nameless official quota groups retain original distinct headings in English and Chinese")

@@ -18,8 +18,9 @@ enum OfficialQuotaView {
         }
         if let errorMessage { stack.addArrangedSubview(label("⚠ \(errorMessage)" + (snapshot == nil ? "" : L("\n当前百分比为上次成功查询结果。")), color: .systemOrange)) }
         if let snapshot {
-            for (_, bucket) in snapshot.namedBuckets {
-                stack.addArrangedSubview(label(bucket.displayName, bold: true))
+            for (key, bucket) in snapshot.namedBuckets {
+                let heading = bucket.nameKey == nil && bucket.limitName == nil && bucket.limitId == nil ? key : bucket.displayName
+                stack.addArrangedSubview(label(heading, bold: true))
                 if bucket.windows.isEmpty { stack.addArrangedSubview(label(L("暂无可用额度窗口"), color: .secondaryLabelColor)) }
                 for window in bucket.windows {
                     let value = window.remaining.map { String(format: "%.1f%%", $0) } ?? L("未知")
