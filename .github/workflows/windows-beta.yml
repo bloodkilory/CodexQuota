@@ -1,0 +1,77 @@
+name: Windows beta
+on:
+  push:
+    branches: [main, 'feat/windows-*']
+    paths: ['windows/**', '.github/workflows/windows-beta.yml', 'docs/windows/**']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows-beta.yml', 'docs/windows/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: windows-beta-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+jobs:
+  test-build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: windows/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: windows/src-tauri
+          cache-on-failure: true
+      - name: Install locked frontend dependencies
+        run: npm ci --ignore-scripts
+      - name: Frontend tests and typecheck
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Rust formatting
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - name: Backend tests
+        run: cargo test --locked --no-default-features --manifest-path src-tauri/Cargo.toml
+      - name: Rust static checks
+        run: cargo clippy --locked --all-targets --manifest-path src-tauri/Cargo.toml -- -D warnings
+      - name: Build Windows x64 installer
+        run: npm run tauri build -- --bundles nsis
+      - name: Prepare matching WebDriver
+        run: |
+          $runtime = Get-ChildItem "${env:ProgramFiles(x86)}/Microsoft/EdgeWebView/Application/*/msedgewebview2.exe" | Sort-Object { [version]$_.VersionInfo.ProductVersion } -Descending | Select-Object -First 1
+          if (-not $runtime) { throw 'WebView2 runtime missing' }
+          $version = $runtime.VersionInfo.ProductVersion
+          Write-Host "Testing WebView2 runtime $version"
+          $url = "https://msedgedriver.microsoft.com/$version/edgedriver_win64.zip"
+          Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP/edgedriver.zip"
+          Expand-Archive "$env:RUNNER_TEMP/edgedriver.zip" "$env:RUNNER_TEMP/edgedriver" -Force
+          "$env:RUNNER_TEMP/edgedriver" | Out-File $env:GITHUB_PATH -Append
+      - name: Package installer and SHA-256
+        run: ./scripts/package.ps1
+      - name: Installed application GUI and uninstall smoke
+        run: ./scripts/install-smoke.ps1
+      - name: Upload Windows beta installer and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuotaNest-windows-x64-beta
+          path: windows/dist-artifacts/*
+          if-no-files-found: error
+      - name: Upload UI test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuotaNest-windows-test-evidence
+          path: windows/e2e-results/*
+          if-no-files-found: ignore

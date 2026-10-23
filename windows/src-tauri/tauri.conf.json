@@ -1,0 +1,73 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "QuotaNest",
+  "version": "1.9.0-beta.5",
+  "identifier": "app.quotanest.windows",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "QuotaNest",
+        "width": 380,
+        "height": 650,
+        "minWidth": 360,
+        "minHeight": 500,
+        "visible": false,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "skipTaskbar": true,
+        "alwaysOnTop": true
+      },
+      {
+        "label": "hover",
+        "title": "QuotaNest Usage",
+        "width": 240,
+        "height": 110,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": true,
+        "skipTaskbar": true,
+        "alwaysOnTop": true,
+        "resizable": false,
+        "focus": false,
+        "focusable": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English",
+          "SimpChinese"
+        ],
+        "displayLanguageSelector": true
+      }
+    },
+    "resources": [
+      "assets/Inter-OFL.txt"
+    ]
+  }
+}

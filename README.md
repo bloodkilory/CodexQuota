@@ -169,3 +169,7 @@ Apple Silicon 产物为交叉编译版本；当前本地运行验证在 Intel Ma
 如果它帮你少切换了一次额度页面，可以给项目点一颗 Star，让更多人发现它。
 
 [MIT License](LICENSE) · 原创应用图标由 AI 辅助生成，随项目一起提供。第三方名称及商标归各自所有者。
+
+## Windows 内测版
+
+新增独立的 Windows 11 x64 内测客户端，保留现有 Mac 原生版。支持 CC Switch / DeepSeek 官方 API 余额及原生 Codex / Claude 官方套餐额度；支持按来源记住周期与币种，内测安装包由 Windows Actions 生成，未列为正式支持平台。详见 [Windows 内测说明](docs/windows/README.md)。
