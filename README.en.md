@@ -2,7 +2,7 @@
 <h1 align="center">QuotaNest · 余度</h1>
 <p align="center">AI subscription quotas, right in your Mac menu bar.<br><a href="README.md">中文文档</a></p>
 
-A native Swift/AppKit menu bar utility for **Codex, Claude Code, and Google Antigravity**, plus five experimental domestic-provider adapters. A small capsule shows your remaining quota and refreshes every three minutes. Click it for individual limits and reset times. The current app interface is Chinese.
+A native Swift/AppKit menu bar utility for **Codex, Claude Code, and Google Antigravity**, plus five experimental domestic-provider adapters. A small capsule shows your remaining quota and refreshes every minute. Click it for individual limits and reset times. The current app interface is Chinese.
 
 ![Menu bar rendering, enlarged 3× with sample data](assets/capsule-preview.png)
 
@@ -42,6 +42,8 @@ Quit CodexQuota, install and open QuotaNest, then move the old app to Trash. Pro
 
 Codex and Antigravity are discovered in `~/.local/bin`, `/opt/homebrew/bin`, and `/usr/local/bin`. Providers work independently. Custom credential profiles and third-party API balances are not supported.
 
+For an unreliable Clash TUN route, the app preference `codexHTTPSProxy` can point at Clash's current local HTTP port. It is passed only to the official Codex subprocess when `HTTPS_PROXY`/`https_proxy` is absent; system proxy settings, Clash rules and login data are unchanged. Update the preference if the port changes, or remove it to restore the default route.
+
 ## Use
 
 Select a provider in the popover: **Codex**, **Claude Code**, or **Antigravity**. The capsule reports the lowest remaining value among the selected period’s applicable windows (Codex uses its main bucket; Antigravity uses Gemini groups only). If Gemini quota is unavailable, Antigravity shows `—` rather than substituting another model. All model groups remain available in the popover. It is not an average across models. Reset times use your system time zone.
@@ -79,6 +81,6 @@ Issues and pull requests are welcome. Include OS/app/CLI versions and redacted r
 
 [MIT License](LICENSE). Original app icon generated with AI assistance; third-party trademarks belong to their owners.
 
-The compact capsule uses provider marks instead of letter abbreviations. Its colored width tracks the remaining percentage; the depleted portion is black. A failed refresh preserves the last known fraction in gray with `!`. Updates follow real quota readings every 180 seconds.
+The compact capsule uses provider marks instead of letter abbreviations. Its colored width tracks the remaining percentage; the depleted portion is black. A failed refresh preserves the last known fraction in gray with `!`. Updates follow real quota readings every 60 seconds. Codex transient service/connection failures get one reconnect and retry within a shared 30-second budget; authentication, permission and rate-limit errors do not retry immediately. Exhausted retries still show stale data explicitly.
 
 The 64-point capsule has a narrow period button after a vertical separator. Click `5h` / `1w` / `额` to switch available cached hourly, weekly or billing quotas instantly. Each provider remembers its selection; hours are preferred initially. With only one valid period the switch is disabled. Click the left portion for details. The progress fill applies only to the left portion; the period button stays black.

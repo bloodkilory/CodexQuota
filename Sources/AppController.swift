@@ -36,7 +36,7 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var errorMessage: String? { reading.error }
     private var refreshing: Bool { reading.refreshing }
     private var lockHandle: FileHandle?
-    private let interval: TimeInterval = 180
+    private let interval: TimeInterval = 60
     private var stateDirectory: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/CodexQuota") }
     func applicationDidFinishLaunching(_ notification: Notification) {
         // flock survives PID reuse and releases automatically on exit.
@@ -62,7 +62,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         popover.behavior = .transient
         popover.animates = true
         let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in self?.refresh() }
-        self.timer = timer; timer.tolerance = 5
+        self.timer = timer; timer.tolerance = 2
         RunLoop.main.add(timer, forMode: .common)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
         refresh()
@@ -289,7 +289,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             }
         } else { stack.addArrangedSubview(label(refreshing ? "正在读取官方套餐…" : "尚未取得额度", color: .secondaryLabelColor)) }
         let time = lastSuccess.map { dateString($0) } ?? "尚未成功"
-        stack.addArrangedSubview(label("更新：\(time)\n每 3 分钟刷新 · \(TimeZone.current.identifier)", size: 11, color: .secondaryLabelColor))
+        stack.addArrangedSubview(label("更新：\(time)\n每 1 分钟刷新 · \(TimeZone.current.identifier)", size: 11, color: .secondaryLabelColor))
         let refreshButton = NSButton(title: refreshing ? "正在刷新…" : "立即刷新", target: self, action: #selector(manualRefresh)); refreshButton.isEnabled = !refreshing
         stack.addArrangedSubview(refreshButton)
         if selectedProvider == .claude && errorMessage != nil {

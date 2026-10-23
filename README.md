@@ -11,7 +11,7 @@
 
 ---
 
-QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude Code 和 Google Antigravity** 的套餐余量放进一颗小胶囊，并新增 **5 个国内厂商平台的实验适配**。每 3 分钟刷新，点击即可查看各额度窗口和重置时间。
+QuotaNest 是一款轻量的原生 macOS 菜单栏应用，将 **Codex、Claude Code 和 Google Antigravity** 的套餐余量放进一颗小胶囊，并新增 **5 个国内厂商平台的实验适配**。每 1 分钟刷新，点击即可查看各额度窗口和重置时间。
 
 ![菜单栏图标和余量填充示例（放大 3 倍，示例数据）](assets/capsule-preview.png)
 
@@ -78,6 +78,8 @@ shasum -a 256 ~/Downloads/QuotaNest-1.6.0-universal.dmg
 
 **默认探测位置**：Codex 为 `~/.local/bin/codex`、`/opt/homebrew/bin/codex`、`/usr/local/bin/codex`；Antigravity 对应同目录的 `agy`。Claude 使用 `~/.claude/.credentials.json` 或默认钥匙串服务 `Claude Code-credentials`。目前不自动遍历多账号、自定义配置目录或其他密码库。
 
+**Clash TUN 连接不稳定**：Codex 查询优先沿用已有的 `HTTPS_PROXY` / `https_proxy`。只有 TUN、没有代理环境变量时，可将应用偏好 `codexHTTPSProxy` 设为 Clash 当前 HTTP 端口（例如 `http://127.0.0.1:7897`）；它只传给 Codex 官方子进程，不改系统代理、Clash 规则或登录数据。Clash 端口变更后需同步该偏好，清除偏好即恢复原路由。
+
 ## 使用
 
 OpenAI 标志、Claude Code 像素机器人和 Antigravity 标志替代字母缩写；悬停可查看完整平台名称。
@@ -94,7 +96,7 @@ OpenAI 标志、Claude Code 像素机器人和 Antigravity 标志替代字母缩
 
 胶囊宽度为 64 点。点击右侧竖线后的周期按钮可立即切换最近查询到的小时 / 周 / 订阅额度，各平台分别记住选择；首次优先小时周期，只有一种有效周期时按钮不可切换。左侧彩色进度只表示当前周期，黑色为已用，右侧按钮保持黑色。
 
-点击胶囊左侧后，可切换平台、查看分组额度、重置时间、刷新状态，或点击 **立即刷新**。时间按系统当前时区显示。应用启动、电脑唤醒时也会刷新；常规刷新间隔为 180 秒，系统调度和网络可能造成延迟。
+点击胶囊左侧后，可切换平台、查看分组额度、重置时间、刷新状态，或点击 **立即刷新**。时间按系统当前时区显示。应用启动、电脑唤醒时也会刷新；常规刷新间隔为 60 秒，系统调度和网络可能造成延迟。Codex 遇到临时服务错误或连接中断时，在同一轮内重连重试一次，总查询预算 30 秒；登录失效、权限不足或限流不立即重试。查询最终失败时仍将上次数据标为过期，保留 `!` 提示。
 
 ### 应用更新
 
