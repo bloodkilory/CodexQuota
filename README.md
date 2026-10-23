@@ -39,7 +39,7 @@ Native macOS menu bar quotas and DeepSeek API balances, with Chinese / English a
 下载后可对照 Release 中的 `SHA256SUMS.txt` 检查文件完整性：
 
 ```sh
-shasum -a 256 ~/Downloads/QuotaNest-1.6.0-universal.dmg
+shasum -a 256 ~/Downloads/QuotaNest-1.8.0-universal.dmg
 ```
 
 ## 从 CodexQuota 升级
