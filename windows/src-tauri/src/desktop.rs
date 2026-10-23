@@ -25,6 +25,7 @@ struct Backend {
     preferences: PathBuf,
     demo: bool,
     hover: Arc<Mutex<Hover>>,
+    demo_tray_event: Arc<Mutex<String>>,
 }
 impl Backend {
     fn snapshot(&self) -> Snapshot {
@@ -303,7 +304,7 @@ fn demo_tray_bounds(
     let visible = hover.is_visible().unwrap_or(false);
     let state = backend.hover.lock().unwrap();
     Ok(
-        serde_json::json!({"cursor":cursor.map(|p| [p.x,p.y]),"mainVisible":main_visible,"controllerVisible":state.visible,"anchor":state.anchor.map(|a| [a.x,a.y,a.w,a.h]),"tray":{"x":rect.x,"y":rect.y,"w":rect.w,"h":rect.h},"card":{"x":card.x,"y":card.y,"w":card.w,"h":card.h},"visible":visible}),
+        serde_json::json!({"lastEvent":backend.demo_tray_event.lock().unwrap().clone(),"cursor":cursor.map(|p| [p.x,p.y]),"mainVisible":main_visible,"controllerVisible":state.visible,"anchor":state.anchor.map(|a| [a.x,a.y,a.w,a.h]),"tray":{"x":rect.x,"y":rect.y,"w":rect.w,"h":rect.h},"card":{"x":card.x,"y":card.y,"w":card.w,"h":card.h},"visible":visible}),
     )
 }
 #[tauri::command]
@@ -533,7 +534,7 @@ pub fn run() {
             }else if service.state.preferences.source.starts_with("api:") {
                 match cc_switch::discover(&PathBuf::from(&service.state.preferences.directory)){Ok(c)=>service.state.connections=c,Err(e)=>service.state.discovery_error=Some(e)}
             }
-            let backend=Backend{service:Arc::new(Mutex::new(service)),work:Arc::new(tokio::sync::Notify::new()),update_work:Arc::new(tokio::sync::Mutex::new(())),home,preferences,demo,hover:Arc::new(Mutex::new(Hover::default()))};
+            let backend=Backend{service:Arc::new(Mutex::new(service)),work:Arc::new(tokio::sync::Notify::new()),update_work:Arc::new(tokio::sync::Mutex::new(())),home,preferences,demo,hover:Arc::new(Mutex::new(Hover::default())),demo_tray_event:Arc::default()};
             app.manage(backend.clone());
             let open=MenuItem::with_id(app,"open","Open QuotaNest",true,None::<&str>)?;
             let refresh=MenuItem::with_id(app,"refresh","Refresh / 刷新",true,None::<&str>)?;
@@ -545,7 +546,7 @@ pub fn run() {
                 .on_menu_event(move|app,event|match event.id.as_ref(){"open"=>controls(app),"refresh"=>start_poll(&menu_backend,app),"quit"=>app.exit(0),_=>{}})
                 .on_tray_icon_event(|tray,event|{
                     let app=tray.app_handle();
-                    if app.state::<Backend>().demo { eprintln!("native tray event: {event:?}"); }
+                    if app.state::<Backend>().demo { *app.state::<Backend>().demo_tray_event.lock().unwrap()=format!("{event:?}"); }
                     match event {
                         TrayIconEvent::Click{button:MouseButton::Left,button_state:MouseButtonState::Up,..}=>controls(app),
                         TrayIconEvent::Enter{rect,..}|TrayIconEvent::Move{rect,..}=>{
