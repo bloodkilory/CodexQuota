@@ -11,7 +11,7 @@ const driver=spawn('msedgedriver',['--port=4444','--verbose',`--log-path=${path.
 let log='';driver.stdout.on('data',v=>log+=v);driver.stderr.on('data',v=>log+=v);
 let session;
 const profile=await mkdtemp(path.join(os.tmpdir(),'quotanest-webview-'));
-const app=spawn(application,['--demo'],{env:{...process.env,WEBVIEW2_USER_DATA_FOLDER:profile,WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:'--remote-debugging-port=9222'},stdio:['ignore','pipe','pipe']});
+const app=spawn('powershell.exe',['-NoProfile','-File','scripts/native-tray.ps1','-Mode','Launch','-Exe',application],{env:{...process.env,WEBVIEW2_USER_DATA_FOLDER:profile,WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:'--remote-debugging-port=9222'},stdio:['ignore','pipe','pipe'],windowsHide:true});
 let appLog='';app.stdout.on('data',v=>appLog+=v);app.stderr.on('data',v=>appLog+=v);
 app.on('exit',code=>appLog+=`\nNative exit: ${code}`);
 async function request(method,route,body){const r=await fetch(`http://127.0.0.1:4444${route}`,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(45000)});const v=await r.json();if(!r.ok||v.value?.error)throw new Error(JSON.stringify(v));return v.value;}
@@ -78,7 +78,7 @@ try{
  function native(mode,options={}){const args=['-NoProfile','-File','scripts/native-tray.ps1','-Mode',mode];for(const [k,v] of Object.entries(options))args.push(`-${k}`,String(v));const r=spawnSync('powershell.exe',args,{encoding:'utf8',windowsHide:true});if(r.status!==0)throw new Error(r.stderr||r.stdout);}
  native('Prepare');const rect=JSON.parse((await readFile(path.join(resultDir,'native-tray-rect.json'),'utf8')).replace(/^\uFEFF/,''));
  native('Move',{X:rect.x+rect.w/2,Y:rect.y+rect.h/2});
- let bounds=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");assert.equal(bounds.visible,true,'hover card should appear');
+ let bounds=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");await writeFile(path.join(resultDir,'hover-bounds.json'),JSON.stringify(bounds));assert.equal(bounds.visible,true,'hover card should appear');
  const left=Math.min(bounds.card.x,rect.x)-8,top=Math.min(bounds.card.y,rect.y)-8;
  native('Capture',{X:left,Y:top,W:Math.max(bounds.card.x+bounds.card.w,rect.x+rect.w)-left+8,H:Math.max(bounds.card.y+bounds.card.h,rect.y+rect.h)-top+8,Name:'windows-tray-claude'});
  native('Capture',{X:rect.x,Y:rect.y,W:rect.w,H:rect.h,Name:'windows-tray-icon'});
@@ -93,4 +93,4 @@ try{
  await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','period-selection-retained','currency-selection','language-switch','settings-update-check','native-tray-hover','hover-preserves-focus','hover-card-retention','tray-click-settings'],credentials:'synthetic only'},null,2));
  console.log('PASS native Windows WebView2 GUI: source switch, language, balances, quotas, settings');
 }catch(error){spawnSync('powershell.exe',['-NoProfile','-File','scripts/capture-diagnostics.ps1'],{stdio:'inherit'});if(session)await screenshot('failure').catch(()=>{});throw error;}
-finally{if(session)await request('DELETE',`/session/${session}`).catch(()=>{});driver.kill();app.kill();await writeFile(path.join(resultDir,'native-app.log'),appLog);await writeFile(path.join(resultDir,'driver.log'),log);}
+finally{if(session)await request('DELETE',`/session/${session}`).catch(()=>{});driver.kill();app.kill();spawnSync('taskkill.exe',['/IM','QuotaNest.exe','/T','/F'],{windowsHide:true});await writeFile(path.join(resultDir,'native-app.log'),appLog);await writeFile(path.join(resultDir,'driver.log'),log);}

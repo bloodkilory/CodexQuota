@@ -1,4 +1,4 @@
-param([string]$Mode='Prepare',[double]$X=0,[double]$Y=0,[double]$W=0,[double]$H=0,[string]$Name='windows-tray')
+param([string]$Mode='Prepare',[double]$X=0,[double]$Y=0,[double]$W=0,[double]$H=0,[string]$Name='windows-tray',[string]$Exe='')
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
@@ -14,7 +14,13 @@ public static class TrayPointer {
 }
 '@
 $out=Join-Path $PSScriptRoot '../e2e-results'
-if($Mode -eq 'Prepare') {
+if($Mode -eq 'Launch') {
+ # Launch through the existing Explorer shell, matching a normal non-admin user launch.
+ # Elevated CI hosts otherwise cannot receive the medium-integrity Explorer tray callbacks.
+ $shell=New-Object -ComObject Shell.Application
+ $shell.ShellExecute($Exe,'--demo',(Split-Path $Exe),'open',1)
+ Start-Sleep -Milliseconds 500
+} elseif($Mode -eq 'Prepare') {
  $root=[System.Windows.Automation.AutomationElement]::RootElement
  $condition=[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Button)
  $buttons=$root.FindAll([System.Windows.Automation.TreeScope]::Descendants,$condition)
