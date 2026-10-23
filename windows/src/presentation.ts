@@ -1,0 +1,44 @@
+export interface AppError { code:string; retryAt:number|null }
+export interface Wallet { currency:string;total:string;granted:string;toppedUp:string }
+export interface Quota { plan:string|null;windows:{remaining:number|null;minutes:number|null;resetsAt:number|null}[] }
+export type Data = {kind:'balance';value:Wallet[]} | {kind:'quota';value:Quota};
+export interface Reading {data:Data|null;updated:number|null;error:AppError|null;refreshing:boolean}
+export interface Connection {id:string;name:string;harness:string;origin:string;supported:boolean}
+export interface Preferences {source:string;language:string;directory:string;autostart:boolean}
+export interface Snapshot {preferences:Preferences;connections:Connection[];reading:Reading;discoveryError:AppError|null;update:{version:string;name:string;url:string;checksumUrl:string}|null;updateStatus:string}
+const copy:Record<string,[string,string]>={
+ title:['QuotaNest','余度 QuotaNest'], beta:['Windows beta','Windows 内测版'], source:['Display source','显示来源'],
+ codex:['Codex · Subscription quota','Codex · 套餐余量'], api:['API balance','API 余额'], configuration:['Saved configuration, not observed session routing','已保存配置，不代表当前会话实际路由'],
+ available:['Available balance','可用余额'],granted:['Granted','赠送余额'],paid:['Topped up','充值余额'],
+ refresh:['Refresh now','立即刷新'],refreshing:['Refreshing…','正在查询…'],updated:['Updated','更新于'],never:['No successful reading yet','尚无成功查询'],stale:['Outdated reading','读数已过期'],
+ everyMinute:['Refreshes every minute','每 1 分钟刷新'],settings:['Settings','设置'],back:['Back','返回'],language:['Language','语言'],system:['Follow system','跟随系统'],
+ connect:['Connect CC Switch','连接 CC Switch'],directory:['CC Switch data directory','CC Switch 数据目录'],scan:['Read saved connections','读取已有连接'],
+ empty:['Connect CC Switch to select a DeepSeek official API connection.','连接 CC Switch 后，可选择 DeepSeek 官方 API 配置。'],
+ unsupported:['Balance query not supported','尚未适配余额查询'],autostart:['Launch at sign-in','登录时启动'],save:['Save settings','保存设置'],
+ checkUpdate:['Check for updates','检查应用更新'],install:['Download & install','下载并安装'],idle:['Checks on startup and when you click','启动时和点击时检查更新'],
+ checking:['Checking GitHub Releases…','正在检查 GitHub 正式版…'],current:['No newer Windows release available','暂无更新的 Windows 正式版'],availableUpdate:['A Windows update is available','有新的 Windows 正式版'],
+ downloading:['Downloading and verifying SHA-256…','正在下载并校验 SHA-256…'],quit:['Quit QuotaNest','退出余度'],
+ demo:['Preview · demo data · no account access','预览 · 演示数据 · 不读取账号'],window:['Quota window','额度窗口'],remaining:['remaining','剩余'],reset:['Resets','重置于'],
+ privacy:['Reads selected local configuration. Keys stay in the backend.','只读取所选本机配置，凭据不进入界面。'],scope:['Beta: native Windows Codex + DeepSeek. WSL and other providers are not supported yet.','内测范围：原生 Windows Codex 与 DeepSeek；暂不支持 WSL 和其他平台。'],
+ network:['Connection failed. Check your proxy/network, then refresh.','连接失败，请检查代理或网络后刷新。'],server:['Service temporarily unavailable.','服务暂不可用。'],unauthorized:['Sign-in expired. Sign in again in the original tool.','登录或凭据已失效，请在原工具重新登录或配置。'],
+ forbidden:['This account cannot read the requested quota/balance.','当前账号无权读取该额度或余额。'],rate_limited:['Rate limited. Waiting until the service allows another check.','查询受限，等待服务允许后再检查。'],
+ source_missing:['CC Switch database not found. Choose its data directory.','未找到 CC Switch 数据库，请选择其数据目录。'],source_busy:['CC Switch is updating. Keeping the last reading.','CC Switch 正在更新，保留上次读数。'],
+ invalid_source:['CC Switch configuration cannot be read. Reconnect it.','无法读取 CC Switch 配置，请重新连接。'],incompatible_source:['CC Switch schema not supported (18–20 required).','CC Switch 数据版本不兼容，仅支持 schema 18–20。'],
+ unsupported_source:['Only official DeepSeek API balance queries are supported.','仅支持 DeepSeek 官方 API 余额查询。'],credentials_missing:['No usable saved credentials. Configure them in CC Switch.','没有可用的已有凭据，请在 CC Switch 中配置。'],
+ source_changed:['Connection changed; old balance cleared. Refresh again.','连接已变化，旧余额已清除，请重新刷新。'],codex_missing:['Native codex.exe not found. Install the official Codex CLI and sign in.','未找到原生 codex.exe，请安装官方 Codex CLI 并登录。'],
+ protocol:['Codex returned an invalid response. Update its official CLI and retry.','Codex 响应无效，请更新官方 CLI 后重试。'],invalid_quota:['No valid quota returned; unknown is not zero.','没有返回有效额度，未知额度不会显示为零。'],
+ invalid_balance:['No valid balance returned; unknown is not zero.','没有返回有效余额，未知余额不会显示为零。'],response_too_large:['Response exceeded the size limit.','响应超出大小限制。'],redirect_refused:['Redirect refused; credentials were not forwarded.','已拒绝重定向，没有转发凭据。'],
+ invalid_update:['Windows release assets are incomplete or invalid.','Windows 正式版附件不完整或无效。'],checksum_mismatch:['SHA-256 mismatch. Installation stopped.','SHA-256 校验不匹配，已停止安装。'],update_download:['Could not download the Windows installer.','Windows 安装包下载失败。'],
+ preferences_write:['Could not save local settings.','无法保存本机设置。'],autostart_failed:['Could not update launch-at-sign-in setting.','无法更新登录启动设置。'],http_error:['The service returned an unexpected status.','服务返回异常状态。'],update_failed:['Could not check for updates. Retry later.','更新检查失败，请稍后重试。']
+};
+export function isChinese(s:Snapshot):boolean {return s.preferences.language==='zh' || (s.preferences.language==='system' && (typeof navigator!=='undefined' && navigator.language.startsWith('zh')));}
+export function text(s:Snapshot,key:string):string {return copy[key]?.[isChinese(s)?1:0]??copy.http_error[isChinese(s)?1:0];}
+export function present(s:Snapshot) {
+ const c=s.connections.find(c=>s.preferences.source===`api:${c.id}`);
+ const data=s.reading.data;
+ const amount=data?.kind==='balance' ? `${data.value[0]?.currency??''} ${data.value[0]?.total??'—'}` : data?.kind==='quota' && data.value.windows[0]?.remaining!=null ? `${data.value.windows[0].remaining.toFixed(0)}%` : '—';
+ return {name:s.preferences.source==='codex'?'Codex':c?.name||'DeepSeek',amount,stale:!!s.reading.error && !!data,updated:s.reading.updated};
+}
+export function demoSnapshot(source='api:claude|demo'):Snapshot {
+ return {preferences:{source,language:'en',directory:'C:\\Users\\Demo\\.cc-switch',autostart:false},connections:[{id:'claude|demo',name:'DeepSeek',harness:'claude',origin:'https://api.deepseek.com',supported:true}],reading:{data:source==='codex'?{kind:'quota',value:{plan:'Plus',windows:[{remaining:76,minutes:300,resetsAt:1792749600},{remaining:62,minutes:10080,resetsAt:1793318400}]}}:{kind:'balance',value:[{currency:'CNY',total:'18.60',granted:'3.60',toppedUp:'15.00'}]},updated:1792731600,error:null,refreshing:false},discoveryError:null,update:null,updateStatus:'idle'};
+}
