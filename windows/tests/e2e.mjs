@@ -96,14 +96,16 @@ try{
  assert.ok(await execute('return document.querySelector("#close").getBoundingClientRect().top >= 0'),'settings reopens at the top');
  await screenshot('windows-tray-click-settings');
  // Check the rendered hover WebView too: a small window must retain all rows without clipping.
+ let compactChecked=false;
  for(const handle of await request('GET',`/session/${session}/window/handles`)){
   await request('POST',`/session/${session}/window`,{handle});
   if(!await execute('return !!document.querySelector(".hover-shell")'))continue;
   const layout=await execute('const shell=document.querySelector(".hover-shell");return {width:innerWidth,height:innerHeight,contentHeight:shell.getBoundingClientRect().height,scrollWidth:document.querySelector("#app").scrollWidth,rows:document.querySelectorAll(".hover-row").length,text:shell.innerText}');
   await writeFile(path.join(resultDir,'compact-layout.json'),JSON.stringify(layout));
   assert.equal(layout.width,240);assert.ok(layout.contentHeight<=layout.height,'all compact quota rows fit vertically');assert.ok(layout.scrollWidth<=layout.width,'compact hover has no horizontal clipping');assert.equal(layout.rows,4);assert.match(layout.text,/Sonnet/);assert.match(layout.text,/Opus/);
-  break;
+  compactChecked=true;break;
  }
+ assert.ok(compactChecked,'compact hover WebView was checked');
  await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','period-selection-retained','currency-selection','language-switch','settings-update-check','native-tray-hover','hover-preserves-focus','hover-card-retention','tray-click-settings'],credentials:'synthetic only'},null,2));
  console.log('PASS native Windows WebView2 GUI: source switch, language, balances, quotas, settings');
 }catch(error){spawnSync('powershell.exe',['-NoProfile','-File','scripts/capture-diagnostics.ps1'],{stdio:'inherit'});if(session)await screenshot('failure').catch(()=>{});throw error;}
