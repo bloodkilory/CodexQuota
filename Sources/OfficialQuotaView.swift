@@ -8,7 +8,7 @@ enum OfficialQuotaView {
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 3
         stack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
         if selectedProvider.experimental {
-            stack.addArrangedSubview(label(L("实验性接入 · 尚未用真实账号验证"), size: 11, color: .systemOrange))
+            stack.addArrangedSubview(label(L(selectedProvider == .zcode ? "实验性接入" : "实验性接入 · 尚未用真实账号验证"), size: 11, color: .systemOrange))
         }
         stack.toolTip = selectedProvider.loginHelp
         if snapshot == nil || errorMessage != nil { stack.addArrangedSubview(label(selectedProvider.loginHelp, color:.secondaryLabelColor)) }
@@ -27,7 +27,8 @@ enum OfficialQuotaView {
                 for window in bucket.windows {
                     let value = window.remaining.map { String(format: "%.1f%%", $0) } ?? L("未知")
                     stack.addArrangedSubview(label(L("%@    剩余 %@",window.title,value), size: 12, bold: true))
-                    stack.addArrangedSubview(label(resetText(window.resetsAt), color: .secondaryLabelColor))
+                    let expiration = window.expiresAt != nil || (window.localizesPeriodLabel && window.periodLabel == "一次性额度")
+                    stack.addArrangedSubview(label(expiration ? expiryText(window.expiresAt) : resetText(window.resetsAt),color:.secondaryLabelColor))
                     let bar = NSProgressIndicator(); bar.isIndeterminate = false; bar.minValue = 0; bar.maxValue = 100; bar.doubleValue = window.remaining ?? 0
                     bar.controlSize = .small
                     bar.widthAnchor.constraint(equalToConstant: 220).isActive = true
@@ -67,6 +68,10 @@ enum OfficialQuotaView {
     }
     private static func dateString(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.locale = Localization.shared.locale; formatter.dateFormat = "MM-dd HH:mm"; return formatter.string(from: date)
+    }
+    private static func expiryText(_ timestamp: Double?) -> String {
+        guard let timestamp, timestamp.isFinite, timestamp > 0, timestamp <= 253402300799 else { return L("到期时间：未提供") }
+        return L("到期：%@",dateString(Date(timeIntervalSince1970:timestamp)))
     }
     private static func resetText(_ timestamp: Double?) -> String {
         guard let timestamp, timestamp.isFinite, timestamp > 0, timestamp <= 253402300799 else { return L("重置时间：未提供") }

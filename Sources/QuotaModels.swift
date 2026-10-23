@@ -1,11 +1,12 @@
 import Foundation
 struct QuotaWindow: Decodable {
-    enum CodingKeys: String, CodingKey { case usedPercent, windowDurationMins, resetsAt, periodLabel }
+    enum CodingKeys: String, CodingKey { case usedPercent, windowDurationMins, resetsAt, periodLabel, expiresAt }
     let usedPercent: Double?
     let windowDurationMins: Int?
     let resetsAt: Double?
     var periodLabel: String? = nil
     var localizesPeriodLabel: Bool = false
+    var expiresAt: Double? = nil
     var remaining: Double? { usedPercent.flatMap { $0.isFinite ? min(100, max(0, 100 - $0)) : nil } }
     var minutes: Int? { windowDurationMins }
     var title: String {

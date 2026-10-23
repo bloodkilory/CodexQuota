@@ -10,17 +10,17 @@ A native Swift/AppKit menu bar utility for eight official subscription providers
 
 ## Experimental domestic-provider adapters
 
-Five adapters have been added: **Kimi Code, Zhipu ZCode, MiniMax Code, Qoder and Tencent CodeBuddy**. They reuse official logins only: no API-key entry, storage or creation. These are feasibility-based choices, not a popularity ranking. **Official-source and synthetic-fixture verification only; none has been tested with a real account.** The app labels them experimental.
+Five adapters have been added: **Kimi Code, Zhipu ZCode, MiniMax Code, Qoder and Tencent CodeBuddy**. They reuse official logins only: no API-key entry, storage or creation. These are feasibility-based choices, not a popularity ranking. **ZCode Start Plan has been verified with an existing local free account; the other new adapters and paid ZCode Coding Plan have official-source and synthetic-fixture verification only.** The app labels them experimental.
 
 | Adapter | Supported login | Quota |
 | --- | --- | --- |
 | Kimi Code | Mainland official-client login cache | 5-hour, weekly, monthly |
-| ZCode / GLM | Mainland personal login and an already initialized project | 5-hour, weekly, monthly tools when returned |
+| ZCode / GLM | Mainland personal Coding Plan or Start Plan sign-in | Coding Plan 5-hour/weekly/monthly tools; Start Plan daily or one-time balances per model |
 | MiniMax Code | Mainland personal official OAuth | 5-hour and weekly |
 | Qoder | Compatible global npm CLI + Node.js, browser login; reviewed 1.1.68 | Plan, add-on and organization credits; no guessed reset |
 | CodeBuddy | Mainland personal login in the official VS Code extension, default profile | Active-cycle credits; explicit Keychain authorization |
 
-Qoder native-only/CN builds and standalone CodeBuddy CLI logins are not supported. ZCode exchanges an existing official project identifier for a short-lived token; it does not create a persistent API key. Expired sessions must be renewed in official clients. The capsule remains 64 points wide; its right button cycles available periods, with `Q` (`额` in Chinese) for billing/monthly quota. Missing logins show unknown, never fake usage.
+Qoder native-only/CN builds and standalone CodeBuddy CLI logins are not supported. ZCode first exchanges an existing Coding Plan project identifier for a short-lived token; if that query fails, it reads current Start Plan balances using the existing official login and device information. It never claims a plan or creates a persistent API key. Expired sessions must be renewed in official clients. The capsule remains 64 points wide; its right button cycles available periods, with `1d` for daily quota and `Q` (`额` in Chinese) for billing/monthly or one-time quota. Missing logins show unknown, never fake usage.
 
 See evidence and limitations: [Kimi](docs/providers/kimi.md), [ZCode/MiniMax](docs/providers/china-login.md), [Qoder](docs/providers/qoder-codebuddy.md), [CodeBuddy](docs/providers/codebuddy.md).
 
@@ -97,4 +97,4 @@ Issues and pull requests are welcome. Include OS/app/CLI versions and redacted r
 
 The compact capsule uses provider marks instead of letter abbreviations. Its colored width tracks the remaining percentage over a translucent base. Wallet amounts have no percentage fill. A failed refresh preserves the last known reading with `!`. Updates follow real quota readings every 60 seconds. Codex transient service/connection failures get one reconnect and retry within a shared 30-second budget; authentication, permission and rate-limit errors do not retry immediately. Exhausted retries still show stale data explicitly.
 
-The 64-point capsule has a narrow period button after a vertical separator. Click `5h` / `1w` / `Q` (`额` in Chinese) to switch available cached hourly, weekly or billing quotas instantly. Each provider remembers its selection; hours are preferred initially. With only one valid period the switch is disabled. Click the left portion for details. The progress fill applies only to the left portion; the period button keeps its translucent base.
+The 64-point capsule has a narrow period button after a vertical separator. Click `5h` / `1d` / `1w` / `Q` (`额` in Chinese) to switch available cached hourly, daily, weekly or billing quotas instantly. Each provider remembers its selection; hours are preferred initially. With only one valid period the switch is disabled. Click the left portion for details. The progress fill applies only to the left portion; the period button keeps its translucent base.

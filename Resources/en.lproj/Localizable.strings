@@ -109,7 +109,6 @@
 "请在终端运行 claude auth login 完成官方订阅登录。" = "Run claude auth login in Terminal to sign in with an official subscription.";
 "使用本机 Antigravity CLI 登录，胶囊默认展示 Gemini。" = "Uses the local Antigravity CLI sign-in. The capsule shows Gemini by default.";
 "请先在 Kimi Code 官方客户端完成国内账号登录。" = "Sign in with a China-region account in the official Kimi Code client first.";
-"请先在官方 ZCode 登录智谱个人账号并初始化项目。仅复用已有登录，不创建 API Key。" = "Sign in with a personal Zhipu account and initialize a project in official ZCode. Reuses existing sign-in without creating API keys.";
 "请先在官方 MiniMax Code 登录国内个人账号。" = "Sign in with a China-region personal account in official MiniMax Code first.";
 "需要 Node.js 与兼容的全球版官方 npm Qoder CLI（已核对 1.1.68），通过浏览器登录；暂不支持原生安装版。" = "Requires Node.js and the compatible global official npm Qoder CLI (1.1.68 verified), signed in through a browser. Native installations are not supported yet.";
 "需要 VS Code 默认配置中的腾讯 CodeBuddy 官方扩展国内个人账号登录。首次读取需手动授权钥匙串；暂不支持独立 CLI 登录。" = "Requires China-region personal sign-in in the official Tencent CodeBuddy extension in the default VS Code profile. Authorize Keychain access on first read. Standalone CLI sign-in is not supported yet.";
@@ -323,3 +322,11 @@
 "CC Switch 连接" = "CC Switch connections";
 "已更新到 v%@" = "Updated to v%@";
 "选择" = "Choose";
+"一次性额度" = "One-time quota";
+"到期：%@" = "Expires: %@";
+"到期时间：未提供" = "Expiry: not provided";
+"ZCode Start Plan 暂无生效额度；请在官方客户端查看" = "ZCode Start Plan has no active balances; check the official client";
+"ZCode Start Plan 登录或设备信息不可用；请打开官方客户端" = "ZCode Start Plan sign-in or device information unavailable; open the official client";
+"ZCode 设备信息不可用；请打开官方客户端" = "ZCode device information unavailable; open the official client";
+"实验性接入" = "Experimental adapter";
+"请先在官方 ZCode 登录智谱个人账号并连接 Coding Plan 或 Start Plan。仅复用已有登录，不创建 API Key。" = "Sign in with a personal Zhipu account and connect Coding Plan or Start Plan in official ZCode. Reuses existing sign-in without creating API keys.";

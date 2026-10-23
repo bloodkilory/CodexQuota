@@ -234,3 +234,17 @@ for language in [InterfaceLanguage.chinese,.english] {
     assert(labels.contains(L("重置：%@ · 等待服务更新",formatter.string(from:Date(timeIntervalSince1970:1)))))
 }
 print("PASS compact details retain multiple windows, credits and elapsed-reset status in both languages")
+
+for language in [InterfaceLanguage.chinese,.english] {
+    useTestLanguage(language)
+    let expiry = Date().timeIntervalSince1970 + 3600
+    let window = QuotaWindow(usedPercent:25,windowDurationMins:nil,resetsAt:nil,periodLabel:"一次性额度",localizesPeriodLabel:true,expiresAt:expiry)
+    let bucket = QuotaBucket(limitId:"synthetic-start",limitName:"Start Plan · Synthetic Model",planType:"Start Plan",primary:window,secondary:nil,credits:nil)
+    let details = OfficialQuotaView.build(provider:.zcode,reading:ProviderReading(snapshot:QuotaSnapshot(rateLimits:bucket,rateLimitsByLimitId:nil)),displayedPeriod:.billing,authorize:{})
+    let labels = descendants(details).compactMap { ($0 as? NSTextField)?.stringValue }
+    let formatter = DateFormatter(); formatter.dateFormat = "MM-dd HH:mm"
+    assert(labels.contains(L("到期：%@",formatter.string(from:Date(timeIntervalSince1970:expiry)))))
+    assert(!labels.contains(L("重置时间：未提供")),"one-time Start Plan expires rather than resetting")
+    assert(labels.contains(L("%@    剩余 %@",language == .english ? "One-time quota" : "一次性额度","75.0%")))
+}
+print("PASS Start Plan one-time expiry and quota label render in Chinese and English without a reset claim")

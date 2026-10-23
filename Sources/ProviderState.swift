@@ -20,7 +20,7 @@ enum QuotaProviderID: String, CaseIterable {
         case .claude: return L("请在终端运行 claude auth login 完成官方订阅登录。")
         case .antigravity: return L("使用本机 Antigravity CLI 登录，胶囊默认展示 Gemini。")
         case .kimi: return L("请先在 Kimi Code 官方客户端完成国内账号登录。")
-        case .zcode: return L("请先在官方 ZCode 登录智谱个人账号并初始化项目。仅复用已有登录，不创建 API Key。")
+        case .zcode: return L("请先在官方 ZCode 登录智谱个人账号并连接 Coding Plan 或 Start Plan。仅复用已有登录，不创建 API Key。")
         case .minimax: return L("请先在官方 MiniMax Code 登录国内个人账号。")
         case .qoder: return L("需要 Node.js 与兼容的全球版官方 npm Qoder CLI（已核对 1.1.68），通过浏览器登录；暂不支持原生安装版。")
         case .codebuddy: return L("需要 VS Code 默认配置中的腾讯 CodeBuddy 官方扩展国内个人账号登录。首次读取需手动授权钥匙串；暂不支持独立 CLI 登录。")
@@ -53,10 +53,11 @@ struct ProviderReading {
 }
 
 enum QuotaPeriod: String, CaseIterable {
-    case short, weekly, billing
+    case short, daily, weekly, billing
     func includes(_ window: QuotaWindow) -> Bool {
         if self == .billing { return window.minutes == nil }
         guard let minutes = window.minutes else { return false }
+        if self == .daily { return minutes == 1440 }
         return self == .weekly ? minutes == 10080 : minutes > 0 && minutes < 1440
     }
 }
@@ -92,6 +93,7 @@ extension ProviderReading {
         if period == .billing { return L("额") }
         guard let minutes = window.minutes else { return "—" }
         if period == .weekly { return "1w" }
+        if period == .daily { return "1d" }
         return minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes)m"
     }
 }

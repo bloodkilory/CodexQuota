@@ -141,17 +141,45 @@ final class ZCodeQuotaClient: ChinaSessionOwner {
     func activate(_ session: URLSession) -> Bool { lock.lock(); defer { lock.unlock() }; if stopped { return false }; active = session; return true }
     func deactivate(_ session: URLSession) { lock.lock(); defer { lock.unlock() }; if active === session { active = nil } }
     func shutdown() { lock.lock(); stopped = true; let session = active; lock.unlock(); session?.invalidateAndCancel() }
-    private func login() throws -> String {
+    private struct Credentials: Equatable {
+        let login: String?
+        let jwt: String?
+        let deviceMid: String?
+    }
+    private func credentials() throws -> Credentials {
         let env = ProcessInfo.processInfo.environment
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let base = env["ZCODE_DATA_BASE_DIR"].flatMap { $0.isEmpty ? nil : $0 } ?? home
-        let file = URL(fileURLWithPath: base).appendingPathComponent(".zcode/v2/credentials.json")
-        let data = try readChinaCredentialFile(file, message: "未找到有效的 ZCode 官方登录；请在 ZCode 连接 BigModel 账号")
+        let directory = URL(fileURLWithPath:base).appendingPathComponent(".zcode/v2")
+        let data = try readChinaCredentialFile(directory.appendingPathComponent("credentials.json"),message:"未找到有效的 ZCode 官方登录；请在 ZCode 连接 BigModel 账号")
         let root = try ChinaLoginPayload.object(data)
-        guard let value = root["oauth:bigmodel:access_token"] as? String else { throw ChinaLoginPayload.failure("请在 ZCode 使用 BigModel 账号登录") }
-        let token = try ChinaLoginPayload.decryptZCode(value, home: home, username: NSUserName(), secret: env["ZCODE_CREDENTIAL_SECRET"])
-        guard let valid = ChinaLoginPayload.header(token) else { throw ChinaLoginPayload.failure("ZCode 官方登录凭据无效") }
-        return valid.replacingOccurrences(of: "^Bearer\\s+", with: "", options: [.regularExpression, .caseInsensitive])
+        func token(_ key: String) -> String? {
+            guard let value = root[key] as? String,
+                  let clear = try? ChinaLoginPayload.decryptZCode(value,home:home,username:NSUserName(),secret:env["ZCODE_CREDENTIAL_SECRET"]),
+                  let valid = ChinaLoginPayload.header(clear) else { return nil }
+            return ChinaLoginPayload.header(valid.replacingOccurrences(of:"^Bearer\\s+",with:"",options:[.regularExpression,.caseInsensitive]))
+        }
+        let telemetry = try? readChinaCredentialFile(directory.appendingPathComponent("telemetry-state.json"),message:"ZCode 设备信息不可用；请打开官方客户端")
+        let state = telemetry.flatMap { try? ChinaLoginPayload.object($0) }
+        return Credentials(login:token("oauth:bigmodel:access_token"),jwt:token("zcodejwttoken"),deviceMid:ChinaLoginPayload.header(state?["deviceMid"]))
+    }
+    private var appVersion: String {
+        for directory in [FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Applications"),URL(fileURLWithPath:"/Applications")] {
+            if let bundle = Bundle(url:directory.appendingPathComponent("ZCode.app")),
+               let version = ChinaLoginPayload.header(bundle.object(forInfoDictionaryKey:"CFBundleShortVersionString")) { return version }
+        }
+        return "3.16.3"
+    }
+    static func startPlanRequest(token: String, deviceMid: String, version: String, platform: String, language: String, timezone: String) throws -> URLRequest {
+        guard [token,deviceMid,version,language,timezone].allSatisfy({ ChinaLoginPayload.header($0) != nil }),
+              ["darwin-x64","darwin-arm64"].contains(platform) else { throw ChinaLoginPayload.failure("ZCode Start Plan 登录或设备信息不可用；请打开官方客户端") }
+        var url = URLComponents(string:"https://zcode.z.ai/api/v1/zcode-plan/billing/balance")!
+        url.queryItems = [URLQueryItem(name:"app_version",value:version)]
+        var request = URLRequest(url:url.url!); request.httpMethod = "GET"
+        for (name,value) in ["Authorization":"Bearer " + token,"X-Device-Mid":deviceMid,"X-Platform":platform,"X-ZCode-App-Version":version,"User-Agent":"ZCode/" + version,"HTTP-Referer":"https://zcode.z.ai","X-Title":"Z Code@electron","X-Os-Category":"macos","X-Client-Language":language,"X-Client-Timezone":timezone,"Accept":"application/json"] {
+            request.setValue(value,forHTTPHeaderField:name)
+        }
+        return request
     }
     private func call(_ path: String, token: String, bearer: Bool = false, body: [String: String]? = nil) throws -> Data {
         guard ChinaLoginPayload.zcodeRequestAllowed(path: path, hasBody: body != nil, bearer: bearer), let url = URL(string: "https://bigmodel.cn" + path), url.host == "bigmodel.cn" else { throw ChinaLoginPayload.failure("ZCode 请求地址无效") }
@@ -162,21 +190,39 @@ final class ZCodeQuotaClient: ChinaSessionOwner {
         if let body { request.httpMethod = "POST"; request.httpBody = try JSONSerialization.data(withJSONObject: body) }
         return try ChinaQuotaTransport().run(request, owner: self)
     }
+    private func paid(_ original: Credentials, version: String) throws -> QuotaSnapshot {
+        guard let login = original.login else { throw ChinaLoginPayload.failure("请在 ZCode 使用 BigModel 账号登录") }
+        let metadata = try ChinaLoginPayload.zcodeEnvelope(call("/api/biz/customer/getCustomerInfo",token:login)) as? [String:Any] ?? [:]
+        let (orgID,projectID) = try ChinaLoginPayload.zcodePersonalProject(metadata)
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn:"-_.~"))
+        func escaped(_ text: String) -> String { text.addingPercentEncoding(withAllowedCharacters:allowed)! }
+        let path = "/api/biz/v1/organization/\(escaped(orgID))/projects/\(escaped(projectID))/api_keys"
+        let keys = try ChinaLoginPayload.zcodeEnvelope(call(path,token:login)) as? [[String:Any]] ?? []
+        // Reuse the official client's existing identifier only. Never create a key.
+        guard let existing = keys.first(where:{ $0["name"] as? String == "zcode-api-key" }),let keyID = ChinaLoginPayload.header(existing["apiKey"]) else { throw ChinaLoginPayload.failure("请先在 ZCode 连接并使用个人 Coding Plan，完成官方账号初始化") }
+        guard try credentials() == original else { throw ChinaLoginPayload.failure("ZCode 登录已变化，请刷新后重试") }
+        let token = try ChinaLoginPayload.zcodeProjectToken(call(path + "/" + escaped(keyID) + "/access_tokens",token:login,bearer:true,body:["clientType":"zcode","clientVersion":version]))
+        guard try credentials() == original else { throw ChinaLoginPayload.failure("ZCode 登录已变化，请刷新后重试") }
+        return try ChinaLoginPayload.zcode(call("/api/monitor/usage/quota/limit",token:token))
+    }
     func fetch(completion: @escaping (Result<QuotaSnapshot, Error>) -> Void) {
         queue.async { completion(Result {
-            let login = try self.login()
-            let metadata = try ChinaLoginPayload.zcodeEnvelope(self.call("/api/biz/customer/getCustomerInfo", token: login)) as? [String: Any] ?? [:]
-            let (orgID, projectID) = try ChinaLoginPayload.zcodePersonalProject(metadata)
-            let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_.~"))
-            func escaped(_ text: String) -> String { text.addingPercentEncoding(withAllowedCharacters: allowed)! }
-            let path = "/api/biz/v1/organization/\(escaped(orgID))/projects/\(escaped(projectID))/api_keys"
-            let keys = try ChinaLoginPayload.zcodeEnvelope(self.call(path, token: login)) as? [[String: Any]] ?? []
-            // Reuse the official client's existing identifier only. Never create a key.
-            guard let existing = keys.first(where: { $0["name"] as? String == "zcode-api-key" }), let keyID = ChinaLoginPayload.header(existing["apiKey"]) else { throw ChinaLoginPayload.failure("请先在 ZCode 连接并使用个人 Coding Plan，完成官方账号初始化") }
-            guard try self.login() == login else { throw ChinaLoginPayload.failure("ZCode 登录已变化，请刷新后重试") }
-            let token = try ChinaLoginPayload.zcodeProjectToken(self.call(path + "/" + escaped(keyID) + "/access_tokens", token: login, bearer: true, body: ["clientType": "zcode", "clientVersion": "3.15.1"]))
-            guard try self.login() == login else { throw ChinaLoginPayload.failure("ZCode 登录已变化，请刷新后重试") }
-            return try ChinaLoginPayload.zcode(self.call("/api/monitor/usage/quota/limit", token: token))
+            let original = try self.credentials(), version = self.appVersion
+            let snapshot: QuotaSnapshot
+            do { snapshot = try self.paid(original,version:version) }
+            catch {
+                guard let jwt = original.jwt, let deviceMid = original.deviceMid else { throw error }
+                guard try self.credentials() == original else { throw ChinaLoginPayload.failure("ZCode 登录已变化，请刷新后重试") }
+                #if arch(arm64)
+                let platform = "darwin-arm64"
+                #else
+                let platform = "darwin-x64"
+                #endif
+                let request = try Self.startPlanRequest(token:jwt,deviceMid:deviceMid,version:version,platform:platform,language:Localization.shared.language == "en" ? "en-US" : "zh-CN",timezone:TimeZone.current.identifier)
+                snapshot = try ChinaLoginPayload.zcode(ChinaQuotaTransport().run(request,owner:self))
+            }
+            guard try self.credentials() == original else { throw ChinaLoginPayload.failure("ZCode 登录已变化，请刷新后重试") }
+            return snapshot
         }) }
     }
 }

@@ -82,6 +82,7 @@ enum ChinaLoginPayload {
 extension ChinaLoginPayload {
     static func zcode(_ data: Data) throws -> QuotaSnapshot {
         let payload = try zcodeEnvelope(data) as? [String: Any] ?? [:]
+        if payload["balances"] != nil || payload["plans"] != nil { return try zcodeStartPlan(payload) }
         guard let limits = payload["limits"] as? [[String: Any]] else { throw failure("ZCode 未提供套餐额度") }
         var five: QuotaWindow?, weekly: QuotaWindow?, monthly: QuotaWindow?
         for row in limits {
@@ -100,6 +101,48 @@ extension ChinaLoginPayload {
         if let monthly { buckets["zcode-tools"] = QuotaBucket(limitId: "zcode-tools", limitName: "GLM 工具调用", planType: nil, primary: monthly, secondary: nil, credits: nil, nameKey:"GLM 工具调用") }
         guard !buckets.isEmpty else { throw failure("ZCode 未返回支持的额度窗口；请在官方客户端查看") }
         return QuotaSnapshot(rateLimits: nil, rateLimitsByLimitId: buckets)
+    }
+    private static func zcodeStartPlan(_ payload: [String:Any]) throws -> QuotaSnapshot {
+        let now = number(payload["server_time"]) ?? Date().timeIntervalSince1970
+        let plans = (payload["plans"] as? [[String:Any]] ?? []).filter {
+            ($0["status"] as? String)?.trimmingCharacters(in:.whitespacesAndNewlines).lowercased() == "active"
+                && (number($0["starts_at"]) ?? 0) <= now
+                && (number($0["ends_at"]).map { $0 <= 0 || $0 > now } ?? true)
+        }
+        var buckets: [String:QuotaBucket] = [:]
+        for (index,row) in (payload["balances"] as? [[String:Any]] ?? []).enumerated() {
+            guard let userPlan = header(row["user_plan_id"]), let planID = header(row["plan_id"]),
+                  let plan = plans.first(where:{ header($0["user_plan_id"]) == userPlan && header($0["plan_id"]) == planID }),
+                  let entitlementID = header(row["entitlement_id"]),
+                  let entitlement = (plan["entitlements"] as? [[String:Any]] ?? []).first(where:{ header($0["entitlement_id"]) == entitlementID }),
+                  let period = entitlement["period"] as? String, ["daily","one_time"].contains(period),
+                  (number(entitlement["effective_at"]) ?? 0) <= now,
+                  (number(row["period_start"]) ?? 0) <= now,
+                  (number(row["expires_at"]).map { $0 <= 0 || $0 > now } ?? true),
+                  (number(row["period_end"]).map { $0 <= 0 || $0 > now } ?? true),
+                  let name = header(row["show_name"]) else { continue }
+            func units(_ value: Any?) -> Double? {
+                let value = number(value) ?? (value as? String).flatMap(Double.init)
+                return value.flatMap { $0.isFinite ? $0 : nil }
+            }
+            let total = units(row["total_units"]), remaining = units(row["remaining_units"])
+            let used: Double?
+            if let total, total > 0, let remaining, remaining >= 0 && remaining <= total { used = 100 - remaining / total * 100 }
+            else { used = nil }
+            let expiry = number(row["expires_at"]).flatMap { $0 > 0 ? $0 : nil }
+            let window: QuotaWindow
+            if period == "daily" {
+                window = QuotaWindow(usedPercent:used,windowDurationMins:1440,resetsAt:number(row["period_end"]) ?? expiry)
+            } else {
+                window = QuotaWindow(usedPercent:used,windowDurationMins:nil,resetsAt:nil,periodLabel:"一次性额度",localizesPeriodLabel:true,expiresAt:expiry ?? number(plan["ends_at"]).flatMap { $0 > 0 ? $0 : nil })
+            }
+            // Identifiers are only used to join the response; never persist user/plan/bucket IDs.
+            let id = "zcode-start-" + String(index)
+            let planName = header(plan["name"]) ?? "Start Plan"
+            buckets[id] = QuotaBucket(limitId:id,limitName:planName + " · " + name,planType:planName,primary:window,secondary:nil,credits:nil)
+        }
+        guard !buckets.isEmpty else { throw failure("ZCode Start Plan 暂无生效额度；请在官方客户端查看") }
+        return QuotaSnapshot(rateLimits:nil,rateLimitsByLimitId:buckets)
     }
     static func zcodeProjectToken(_ data: Data, now: Double = Date().timeIntervalSince1970) throws -> String {
         let issued = try zcodeEnvelope(data) as? [String: Any] ?? [:]

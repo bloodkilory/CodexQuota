@@ -22,7 +22,7 @@ swiftc Sources/Localization.swift Tests/Support.swift -swift-version 5 -framewor
 
 swiftc Sources/Localization.swift Tests/Support.swift Sources/QuotaModels.swift Sources/CodexClient.swift Sources/KimiPayload.swift Sources/KimiQuotaClient.swift Tests/Kimi/main.swift -o .build/kimi-tests
 .build/kimi-tests
-swiftc Sources/Localization.swift Tests/Support.swift Sources/QuotaModels.swift Sources/CodexClient.swift Sources/ProviderPayload.swift Sources/ChinaLoginPayload.swift Sources/ChinaLoginClients.swift Tests/ChinaLogin/main.swift -o .build/china-login-tests
+swiftc Sources/Localization.swift Tests/Support.swift Sources/QuotaModels.swift Sources/ProviderState.swift Sources/CodexClient.swift Sources/ProviderPayload.swift Sources/ChinaLoginPayload.swift Sources/ChinaLoginClients.swift Tests/ChinaLogin/main.swift -o .build/china-login-tests
 .build/china-login-tests
 swiftc Sources/Localization.swift Tests/Support.swift Sources/QuotaModels.swift Sources/CodexClient.swift Sources/BoundedCommand.swift Sources/QoderPayload.swift Sources/QoderQuotaClient.swift Tests/Qoder/main.swift -o .build/qoder-tests
 .build/qoder-tests
