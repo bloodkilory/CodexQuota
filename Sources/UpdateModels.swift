@@ -2,8 +2,9 @@ import Foundation
 
 struct UpdateError: LocalizedError {
     let message: String
-    init(_ message: String) { self.message = message }
-    var errorDescription: String? { message }
+    init(_ message: String, arguments: [String] = []) { self.message = message; self.arguments = arguments }
+    var arguments: [String] = []
+    var errorDescription: String? { Localization.shared.text(message,arguments) }
 }
 struct DottedVersion: Comparable {
     let components: [Int]
@@ -30,12 +31,13 @@ struct UpdateRelease {
 }
 enum UpdateAvailability { case upToDate, available(UpdateRelease) }
 enum UpdateMenuState {
-    case busy(String), current(String), available(String), failed(String)
+    case busy(String), current(String), available(String), failed(Error)
     var title: String {
         switch self {
-        case .busy(let text), .failed(let text): return text
-        case .current(let version): return "当前版本 v\(version)，已是最新"
-        case .available(let version): return "发现 v" + version
+        case .busy(let text): return L(text)
+        case .failed(let error): return error.localizedDescription
+        case .current(let version): return L("当前版本 v%@，已是最新",version)
+        case .available(let version): return L("发现 v") + version
         }
     }
     var isActionEnabled: Bool { if case .busy = self { return false }; return true }

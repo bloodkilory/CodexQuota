@@ -24,8 +24,8 @@ enum QoderPayload {
             guard let row = row as? [String:Any], let total = number(organization ? row["cap"] ?? row["total"] : row["total"]), total > 0,
                   let used = number(row["used"]), used >= 0, (used / total * 100).isFinite else { return }
             if organization, row["available"] as? Bool == false { return }
-            let window = QuotaWindow(usedPercent:used / total * 100,windowDurationMins:nil,resetsAt:nil,periodLabel:label)
-            buckets[id] = QuotaBucket(limitId:id,limitName:name,planType:nil,primary:window,secondary:nil,credits:nil)
+            let window = QuotaWindow(usedPercent:used / total * 100,windowDurationMins:nil,resetsAt:nil,periodLabel:label, localizesPeriodLabel:true)
+            buckets[id] = QuotaBucket(limitId:id,limitName:name,planType:nil,primary:window,secondary:nil,credits:nil, nameKey:name)
         }
         add("qoder","Qoder 套餐",root["user_quota"] ?? root["userQuota"],"订阅周期额度")
         add("qoder-addon","Qoder 加量包",root["add_on_quota"] ?? root["addOnQuota"],"加量包额度")

@@ -3,7 +3,7 @@ import CoreFoundation
 import CryptoKit
 
 enum ChinaLoginPayload {
-    static func failure(_ message: String) -> ProviderPayloadError { ProviderPayloadError(message: message) }
+    static func failure(_ message: String, arguments: [String] = []) -> ProviderPayloadError { ProviderPayloadError(message: message,arguments:arguments) }
     static func number(_ value: Any?) -> Double? {
         guard let n = value as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(), n.doubleValue.isFinite else { return nil }
         return n.doubleValue
@@ -92,12 +92,12 @@ extension ChinaLoginPayload {
                 if unit == 3 && count == 5 { five = QuotaWindow(usedPercent: percent, windowDurationMins: 300, resetsAt: reset) }
                 if unit == 6 { weekly = QuotaWindow(usedPercent: percent, windowDurationMins: 10080, resetsAt: reset) }
             } else if type == "TIME_LIMIT", unit == 5, count == 1 {
-                monthly = QuotaWindow(usedPercent: percent, windowDurationMins: nil, resetsAt: reset, periodLabel: "月工具额度")
+                monthly = QuotaWindow(usedPercent: percent, windowDurationMins: nil, resetsAt: reset, periodLabel: "月工具额度", localizesPeriodLabel:true)
             }
         }
         var buckets: [String: QuotaBucket] = [:]
         if five != nil || weekly != nil { buckets["zcode"] = QuotaBucket(limitId: "zcode", limitName: "GLM Coding Plan", planType: header(payload["level"]), primary: five, secondary: weekly, credits: nil) }
-        if let monthly { buckets["zcode-tools"] = QuotaBucket(limitId: "zcode-tools", limitName: "GLM 工具调用", planType: nil, primary: monthly, secondary: nil, credits: nil) }
+        if let monthly { buckets["zcode-tools"] = QuotaBucket(limitId: "zcode-tools", limitName: "GLM 工具调用", planType: nil, primary: monthly, secondary: nil, credits: nil, nameKey:"GLM 工具调用") }
         guard !buckets.isEmpty else { throw failure("ZCode 未返回支持的额度窗口；请在官方客户端查看") }
         return QuotaSnapshot(rateLimits: nil, rateLimitsByLimitId: buckets)
     }

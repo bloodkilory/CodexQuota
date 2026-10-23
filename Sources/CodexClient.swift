@@ -2,13 +2,15 @@ import Foundation
 import Darwin
 struct QuotaError: LocalizedError {
     let message: String
-    var errorDescription: String? { message }
+    var arguments: [String] = []
+    var errorDescription: String? { Localization.shared.text(message,arguments) }
 }
 private struct CodexRequestFailure: LocalizedError {
     let message: String
     var retryable = false
     var rpcCode: Int? = nil
-    var errorDescription: String? { message }
+    var arguments: [String] = []
+    var errorDescription: String? { Localization.shared.text(message,arguments) }
     static func rpc(_ error: [String: Any]) -> Self {
         let code = error["code"] as? Int ?? 0
         let reason = (error["message"] as? String ?? "").lowercased()
@@ -22,7 +24,7 @@ private struct CodexRequestFailure: LocalizedError {
         if reason.range(of:#"\b429\b|too many requests"#,options:.regularExpression) != nil {
             return Self(message:"Codex 查询过于频繁；等待下次自动刷新",rpcCode:code)
         }
-        return Self(message:code == -32603 ? "Codex 套餐服务暂时不可用（-32603）；稍后自动重试" : "Codex 额度查询失败（\(code)）",retryable:code == -32603,rpcCode:code)
+        return Self(message:code == -32603 ? "Codex 套餐服务暂时不可用（-32603）；稍后自动重试" : "Codex 额度查询失败（%@）",retryable:code == -32603,rpcCode:code,arguments:code == -32603 ? [] : [String(code)])
     }
 }
 final class CodexClient {
@@ -151,6 +153,6 @@ final class CodexClient {
                 guard buffer.count < 4_000_000 else { throw QuotaError(message: "Codex 响应超过大小限制") }
             }
         }
-        throw CodexRequestFailure(message:"查询超过 \(Int(timeout)) 秒；请检查网络或 Codex 登录状态",retryable:true)
+        throw CodexRequestFailure(message:"查询超过 %@ 秒；请检查网络或 Codex 登录状态",retryable:true,arguments:[String(Int(timeout))])
     }
 }

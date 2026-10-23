@@ -1,4 +1,5 @@
 import Foundation
+useTestLanguage()
 func check(_ condition: Bool, _ name: String) { if !condition { fatalError("FAIL: \(name)") }; print("PASS: \(name)") }
 func decode(_ s: String) throws -> QuotaSnapshot { try QuotaSnapshot.decode(Data(s.utf8)) }
 let single = try decode(#"{"rateLimits":{"primary":{"usedPercent":3,"windowDurationMins":10080,"resetsAt":1792396076}}}"#)

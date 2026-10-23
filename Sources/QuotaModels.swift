@@ -1,27 +1,33 @@
 import Foundation
 struct QuotaWindow: Decodable {
+    enum CodingKeys: String, CodingKey { case usedPercent, windowDurationMins, resetsAt, periodLabel }
     let usedPercent: Double?
     let windowDurationMins: Int?
     let resetsAt: Double?
     var periodLabel: String? = nil
+    var localizesPeriodLabel: Bool = false
     var remaining: Double? { usedPercent.flatMap { $0.isFinite ? min(100, max(0, 100 - $0)) : nil } }
     var minutes: Int? { windowDurationMins }
     var title: String {
-        if let periodLabel { return periodLabel }
-        guard let n = minutes else { return "额度窗口" }
-        if n % 1440 == 0 { return "\(n / 1440) 天额度" }
-        if n % 60 == 0 { return "\(n / 60) 小时额度" }
-        return "\(n) 分钟额度"
+        if let periodLabel { return localizesPeriodLabel ? L(periodLabel) : periodLabel }
+        guard let n = minutes else { return L("额度窗口") }
+        if n % 1440 == 0 { return L("%@ 天额度", String(n / 1440)) }
+        if n % 60 == 0 { return L("%@ 小时额度", String(n / 60)) }
+        return L("%@ 分钟额度", String(n))
     }
 }
 struct Credits: Decodable { let balance: String?; let unlimited: Bool? }
 struct QuotaBucket: Decodable {
+    enum CodingKeys: String, CodingKey { case limitId, limitName, planType, primary, secondary, credits }
     let limitId: String?
     let limitName: String?
     let planType: String?
     let primary: QuotaWindow?
     let secondary: QuotaWindow?
     let credits: Credits?
+    var nameKey: String? = nil
+    var nameArguments: [String] = []
+    var displayName: String { nameKey.map { Localization.shared.text($0,nameArguments) } ?? limitName ?? limitId ?? "—" }
     var windows: [QuotaWindow] { [primary, secondary].compactMap { $0 } }
     var remaining: Double? { windows.compactMap { $0.remaining }.min() }
 }

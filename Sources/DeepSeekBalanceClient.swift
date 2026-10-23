@@ -6,7 +6,9 @@ struct DeepSeekQueryError: LocalizedError {
     var retryable = false
     var retryAt: Date? = nil
     var sourceChanged = false
-    var errorDescription: String? { message }
+    var arguments: [String] = []
+    var underlying: Error? = nil
+    var errorDescription: String? { underlying?.localizedDescription ?? Localization.shared.text(message,arguments) }
 }
 
 final class DeepSeekBalanceClient {
@@ -75,13 +77,13 @@ final class DeepSeekBalanceClient {
                             listener.completion(result)
                         } catch {
                             let busy = (error as? ConnectedAccountError)?.isTransient == true
-                            listener.completion(.failure(DeepSeekQueryError(message:busy ? error.localizedDescription : "CC Switch 来源已变化或不可读；已丢弃旧余额，请重新检查连接",sourceChanged:!busy)))
+                            listener.completion(.failure(DeepSeekQueryError(message:"CC Switch 来源已变化或不可读；已丢弃旧余额，请重新检查连接",sourceChanged:!busy,underlying:busy ? error : nil)))
                         }
                     }
                 }
             } catch {
                 if let sourceError = error as? ConnectedAccountError {
-                    completion(.failure(DeepSeekQueryError(message:error.localizedDescription,sourceChanged:!sourceError.isTransient)))
+                    completion(.failure(DeepSeekQueryError(message:sourceError.message,sourceChanged:!sourceError.isTransient,underlying:sourceError)))
                 } else { completion(.failure(error)) }
             }
         }
@@ -126,7 +128,7 @@ private final class DeepSeekBalanceTransfer: NSObject, URLSessionDataDelegate {
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         let http = response as? HTTPURLResponse, status = http?.statusCode ?? 0
         if status != 200 {
-            let text = status == 401 ? "DeepSeek 凭据失效；请在 CC Switch 检查" : status == 403 ? "DeepSeek 没有余额查询权限；请在原平台检查" : status == 429 ? "DeepSeek 查询受限；等待下次自动检查" : "DeepSeek 余额接口暂不可用（\(status)）"
+            let text = status == 401 ? "DeepSeek 凭据失效；请在 CC Switch 检查" : status == 403 ? "DeepSeek 没有余额查询权限；请在原平台检查" : status == 429 ? "DeepSeek 查询受限；等待下次自动检查" : "DeepSeek 余额接口暂不可用（%@）"
             var retryAt: Date?
             if status == 429 {
                 let value = http?.value(forHTTPHeaderField:"Retry-After") ?? ""
@@ -137,7 +139,7 @@ private final class DeepSeekBalanceTransfer: NSObject, URLSessionDataDelegate {
                     retryAt = formatter.date(from:value) ?? Date().addingTimeInterval(60)
                 }
             }
-            failure = DeepSeekQueryError(message:text,retryable:(500...599).contains(status),retryAt:retryAt)
+            failure = DeepSeekQueryError(message:text,retryable:(500...599).contains(status),retryAt:retryAt,arguments:[String(status)])
         } else if response.expectedContentLength > Int64(limit) { failure = DeepSeekQueryError(message:"DeepSeek 余额响应超出大小限制") }
         completionHandler(failure == nil ? .allow : .cancel)
     }

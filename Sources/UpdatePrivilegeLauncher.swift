@@ -31,7 +31,7 @@ enum UpdatePrivilegeLauncher {
                     if let data = try? Data(contentsOf:prepared.directory.appendingPathComponent("status.json")), data.count <= 16384,
                        let status = try? JSONDecoder().decode(UpdateInstallStatus.self,from:data) {
                         if status.state == "ready" { return }
-                        if status.state == "failed" { throw UpdateError(status.message) }
+                        if status.state == "failed" { throw status.failure }
                     }
                     guard process.isRunning else { throw UpdateError("更新未启动；管理员授权可能已取消") }
                     Thread.sleep(forTimeInterval:0.1)

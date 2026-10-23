@@ -6,9 +6,11 @@ import Darwin
 struct ConnectedAccountError: LocalizedError {
     let message: String
     var isTransient = false
-    var errorDescription: String? { message }
+    var arguments: [String] = []
+    var errorDescription: String? { Localization.shared.text(message,arguments) }
 }
 struct CCSwitchConnection: Codable, Equatable {
+    enum CodingKeys: String, CodingKey { case id, providerID, harness, name, origin, configurationRole, supportsBalance }
     let id: String
     let providerID: String
     let harness: String
@@ -16,6 +18,8 @@ struct CCSwitchConnection: Codable, Equatable {
     let origin: String
     let configurationRole: String
     let supportsBalance: Bool
+    var fallbackName = false
+    var displayName: String { fallbackName ? L("未命名服务") : name }
 }
 struct CCSwitchCredential {
     let token: String
@@ -132,7 +136,7 @@ struct CCSwitchStore {
                 let routed = ["proxy","routing"].contains(mode) && state["proxy_route"] as? String == id
                 let role = routed ? "路由配置" : mode == "aggregation" ? "已保存 · 聚合模式" : current ? "默认配置" : "已保存配置"
                 let title = String(name.unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }.prefix(80).map(String.init).joined())
-                return CCSwitchConnection(id:harness + "|" + id,providerID:id,harness:harness,name:title.isEmpty ? "未命名服务" : title,origin:endpointOrigin,configurationRole:role,supportsBalance:supported)
+                return CCSwitchConnection(id:harness + "|" + id,providerID:id,harness:harness,name:title.isEmpty ? "未命名服务" : title,origin:endpointOrigin,configurationRole:role,supportsBalance:supported,fallbackName:title.isEmpty)
             }
         }
     }

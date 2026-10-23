@@ -129,4 +129,10 @@ struct UpdateHelperRequest: Codable {
         try request.validate(); return request
     }
 }
-struct UpdateInstallStatus: Codable { let state: String; let message: String }
+struct UpdateInstallStatus: Codable {
+    let state: String
+    let message: String
+    var arguments: [String]? = nil
+    var localizedMessage: String { Localization.shared.text(message,arguments ?? []) }
+    var failure: UpdateError { UpdateError(message,arguments:arguments ?? []) }
+}

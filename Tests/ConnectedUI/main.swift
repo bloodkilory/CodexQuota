@@ -1,21 +1,22 @@
 import AppKit
+useTestLanguage()
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 let fixture = CCSwitchConnection(id:"claude|fixture",providerID:"fixture",harness:"claude",name:"DeepSeek",origin:"https://api.deepseek.com",configurationRole:"路由配置",supportsBalance:true)
 let payload = try DeepSeekBalance.decode(Data(#"{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"18.60","granted_balance":"3.60","topped_up_balance":"15.00"}]}"#.utf8))
 var reading = ConnectedAccountReading()
 _ = reading.complete(.success(payload),generation:reading.begin()!)
-var pinned: String?, refreshed: String?, connected = false, legacy = false
-let actions = ConnectedAccountsActions(changeTab:{ _ in },select:{ _ in },pin:{ pinned = $0 },refresh:{ refreshed = $0 },connect:{ connected = true },legacy:{ legacy = true })
-let model = ConnectedAccountsPresentation(connections:[fixture],enabled:[fixture.id],readings:[fixture.id:reading],selectedID:fixture.id,pinnedID:nil,currency:nil,sourceError:nil,discovering:false,tools:false)
+var refreshed: String?, settings = false
+let actions = ConnectedAccountsActions(select:{ _ in },refresh:{ refreshed = $0 },settings:{ settings = true })
+let model = ConnectedAccountsPresentation(connections:[fixture],enabled:[fixture.id],readings:[fixture.id:reading],source:.api(fixture.id),currency:nil,sourceError:nil)
 func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
 let root = ConnectedAccountsView.build(model,actions:actions)
-for id in ["pin-account","refresh-account","connect-source","legacy-settings"] {
+for id in ["refresh-account","settings"] {
     let button = descendants(root).first { $0.identifier?.rawValue == id } as! NSButton
     button.performClick(nil)
 }
-assert(pinned == fixture.id && refreshed == fixture.id && connected && legacy)
-print("PASS native account actions: pin, refresh, connect and legacy access")
+assert(refreshed == fixture.id && settings)
+print("PASS native account actions: refresh and settings")
 var busy = model; busy.readings[fixture.id]?.refreshing = true
 let busyView = ConnectedAccountsView.build(busy,actions:actions)
 assert((descendants(busyView).first { $0.identifier?.rawValue == "refresh-account" } as! NSButton).isEnabled == false)

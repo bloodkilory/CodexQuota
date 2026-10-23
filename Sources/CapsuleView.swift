@@ -23,7 +23,7 @@ final class CapsuleView: NSView {
         }
         detailButton.action = #selector(openDetails)
         periodButton.action = #selector(switchPeriod)
-        periodButton.setAccessibilityLabel("切换额度周期")
+        periodButton.setAccessibilityLabel(L("切换额度周期"))
         periodButton.isEnabled = false
         layoutButtons()
     }

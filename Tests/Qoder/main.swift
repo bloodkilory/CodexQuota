@@ -1,4 +1,5 @@
 import Foundation
+useTestLanguage()
 let valid = Data(#"{"user_id":"test","user_type":"personal","user_quota":{"total":1000,"used":250,"remaining":750},"add_on_quota":{"total":100,"used":10},"org_resource_package":{"cap":500,"used":100,"available":true}}"#.utf8)
 let snapshot = try QoderPayload.decode(valid)
 assert(snapshot.buckets.count == 3)

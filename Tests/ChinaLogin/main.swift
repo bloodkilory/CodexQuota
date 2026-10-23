@@ -2,6 +2,7 @@ import Foundation
 import CryptoKit
 import Darwin
 
+useTestLanguage()
 func check(_ condition: @autoclosure () -> Bool, _ message: String) { if !condition() { fatalError(message) } }
 func data(_ object: Any) -> Data { try! JSONSerialization.data(withJSONObject: object) }
 func rejects(_ action: () throws -> Void, _ message: String) { do { try action(); fatalError(message) } catch {} }

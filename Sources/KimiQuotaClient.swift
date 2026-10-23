@@ -86,7 +86,7 @@ private final class KimiUsageTransfer: NSObject, URLSessionDataDelegate {
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         if status != 200 {
-            failure = QuotaError(message: status == 401 ? "Kimi 登录失效；请在官方客户端重新登录" : status == 429 ? "Kimi 查询过于频繁；请稍后刷新" : "Kimi 额度接口返回错误（\(status)）")
+            failure = QuotaError(message: status == 401 ? "Kimi 登录失效；请在官方客户端重新登录" : status == 429 ? "Kimi 查询过于频繁；请稍后刷新" : "Kimi 额度接口返回错误（%@）",arguments:[String(status)])
         } else if response.expectedContentLength > Int64(limit) { failure = QuotaError(message: "Kimi 额度响应超出大小限制") }
         completionHandler(failure == nil ? .allow : .cancel)
     }
@@ -96,7 +96,7 @@ private final class KimiUsageTransfer: NSObject, URLSessionDataDelegate {
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         if let failure { completion(.failure(failure)) }
-        else if let error { completion(.failure(QuotaError(message: "Kimi 网络查询失败（\((error as NSError).code)）"))) }
+        else if let error { completion(.failure(QuotaError(message: "Kimi 网络查询失败（%@）",arguments:[String((error as NSError).code)]))) }
         else { completion(Result { try KimiPayload.decode(data) }) }
     }
 }

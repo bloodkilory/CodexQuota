@@ -1,6 +1,7 @@
 import Foundation
 import SQLite3
 
+useTestLanguage()
 func check(_ condition: @autoclosure () -> Bool, _ message: String) { if !condition() { fatalError(message) } }
 func rejects(line: UInt = #line, _ body: () throws -> Void) { do { try body(); fatalError("Expected rejection at test line \(line)") } catch {} }
 func fixture(_ accounts: String, _ total: Int = 2) -> Data {

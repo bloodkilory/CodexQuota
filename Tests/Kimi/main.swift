@@ -1,6 +1,7 @@
 import Foundation
 import Darwin
 
+useTestLanguage()
 func check(_ condition: @autoclosure () -> Bool, _ message: String) {
     if !condition() { fatalError(message) }
 }

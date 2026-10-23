@@ -60,9 +60,9 @@ enum UpdateHelper {
             let plist = try PropertyListSerialization.propertyList(from:Data(contentsOf:target.appendingPathComponent("Contents/Info.plist")),options:[],format:nil) as? [String:Any]
             guard plist?["CFBundleIdentifier"] as? String == "local.codexquota", let old = plist?["CFBundleShortVersionString"] as? String, let oldVersion = DottedVersion(old), version > oldVersion else { throw UpdateError("目标应用版本或身份已经变化，已停止更新") }
             _ = try UpdateReplacement.install(staged:request.stagedApp,target:target) { try UpdateBundleValidator.validate(at:$0,expectedVersion:version) }
-            try writeStatus(UpdateInstallStatus(state:"installed",message:"已更新到 v" + version.text),request:request)
+            try writeStatus(UpdateInstallStatus(state:"installed",message:"已更新到 v%@",arguments:[version.text]),request:request)
         } catch {
-            try? writeStatus(UpdateInstallStatus(state:"failed",message:(error as? UpdateError)?.message ?? "更新安装失败；请重新打开应用并重试"),request:request)
+            try? writeStatus(UpdateInstallStatus(state:"failed",message:(error as? UpdateError)?.message ?? "更新安装失败；请重新打开应用并重试",arguments:(error as? UpdateError)?.arguments),request:request)
             try? relaunch(request,runner:runner)
             throw error
         }

@@ -1,4 +1,5 @@
 import AppKit
+useTestLanguage()
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 func bitmap(_ width: Int, _ height: Int) -> NSBitmapImageRep {

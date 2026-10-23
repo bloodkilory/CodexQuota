@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+useTestLanguage()
 signal(SIGPIPE, SIG_IGN)
 setbuf(stdout, nil)
 func probe(_ mode: String, success: Bool) {

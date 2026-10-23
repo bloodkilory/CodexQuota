@@ -1,6 +1,7 @@
 import Foundation
 import SQLite3
 
+useTestLanguage()
 func check(_ condition: Bool, _ message: String) {
     guard condition else { fatalError("FAIL " + message) }
     print("PASS " + message)

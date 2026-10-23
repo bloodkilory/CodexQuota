@@ -44,8 +44,8 @@ enum CodeBuddyPayload {
             guard remain.isFinite, total.isFinite else { throw invalid }
         }
         guard count > 0, total > 0 else { throw QuotaError(message: "CodeBuddy 未返回可用的当前积分额度；请在官方客户端核对") }
-        let window = QuotaWindow(usedPercent: (total - remain) / total * 100, windowDurationMins: nil, resetsAt: nil, periodLabel: "当前积分")
-        let bucket = QuotaBucket(limitId: "codebuddy", limitName: "CodeBuddy 当前积分", planType: nil, primary: window, secondary: nil, credits: Credits(balance: String(format: "%.2f", remain), unlimited: false))
+        let window = QuotaWindow(usedPercent: (total - remain) / total * 100, windowDurationMins: nil, resetsAt: nil, periodLabel: "当前积分", localizesPeriodLabel:true)
+        let bucket = QuotaBucket(limitId: "codebuddy", limitName: "CodeBuddy 当前积分", planType: nil, primary: window, secondary: nil, credits: Credits(balance: String(format: "%.2f", remain), unlimited: false), nameKey:"CodeBuddy 当前积分")
         return QuotaSnapshot(rateLimits: bucket, rateLimitsByLimitId: nil)
     }
 }

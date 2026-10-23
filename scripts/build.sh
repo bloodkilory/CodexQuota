@@ -7,8 +7,9 @@ SDK="$(xcrun --sdk macosx --show-sdk-path)"
 APP_FLAGS=(-swift-version 5 -O)
 if [ -f "$SDK/System/Library/Frameworks/AppKit.framework/Headers/NSGlassEffectView.h" ]; then APP_FLAGS+=(-D QUOTANEST_HAS_LIQUID_GLASS); fi
 for ARCH in arm64 x86_64; do
-    swiftc -swift-version 5 -O -sdk "$SDK" -target "$ARCH-apple-macosx13.0" Sources/UpdateModels.swift Sources/UpdateHelperContract.swift Sources/UpdateReplacement.swift Helpers/Update/main.swift -o ".build/bin/QuotaNestUpdateHelper-$ARCH"
+    swiftc -swift-version 5 -O -sdk "$SDK" -target "$ARCH-apple-macosx13.0" Sources/Localization.swift Sources/UpdateModels.swift Sources/UpdateHelperContract.swift Sources/UpdateReplacement.swift Helpers/Update/main.swift -o ".build/bin/QuotaNestUpdateHelper-$ARCH"
 done
+cp -R Resources/*.lproj "$APP/Contents/Resources/"
 cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp assets/PROVIDER-MARKS.md "$APP/Contents/Resources/PROVIDER-MARKS.md"
 cp Helpers/qoder-usage.cjs "$APP/Contents/Resources/qoder-usage.cjs"
@@ -33,7 +34,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>1.8.0</string>
-<key>CFBundleVersion</key><string>12</string>
+<key>CFBundleVersion</key><string>13</string>
+<key>CFBundleDevelopmentRegion</key><string>en</string>
+<key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string></array>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>

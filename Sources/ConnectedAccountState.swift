@@ -3,7 +3,12 @@ import Foundation
 struct ConnectedAccountReading {
     var balance: DeepSeekBalance?
     var lastSuccess: Date?
-    var error: String?
+    var failure: Error?
+    private var errorText: String?
+    var error: String? {
+        get { failure?.localizedDescription ?? errorText.map { L($0) } }
+        set { failure = nil; errorText = newValue }
+    }
     var refreshing = false
     var successes = 0
     private(set) var generation = 0
@@ -18,7 +23,7 @@ struct ConnectedAccountReading {
     }
     mutating func discoveryFailed(_ failure: Error) {
         if (failure as? ConnectedAccountError)?.isTransient != true { invalidate() }
-        error = failure.localizedDescription
+        self.failure = failure
     }
     mutating func complete(_ result: Result<DeepSeekBalance,Error>, generation: Int) -> Bool {
         guard generation == self.generation else { return false }
@@ -27,7 +32,7 @@ struct ConnectedAccountReading {
         case .success(let value): balance = value; lastSuccess = Date(); error = nil; successes += 1
         case .failure(let failure):
             if (failure as? DeepSeekQueryError)?.sourceChanged == true { sourceChanged() }
-            error = failure.localizedDescription
+            self.failure = failure
         }
         return true
     }

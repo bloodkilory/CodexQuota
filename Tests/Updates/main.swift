@@ -1,5 +1,6 @@
 import Foundation
 import CryptoKit
+useTestLanguage()
 func check(_ value: Bool, _ name: String) { if !value { fatalError("FAIL " + name) }; print("PASS " + name) }
 func rejects(_ name: String, _ body: () throws -> Void) { do { try body(); fatalError("FAIL " + name) } catch { print("PASS " + name) } }
 func json(tag: String = "v1.7.0", draft: Bool = false, pre: Bool = false, duplicate: Bool = false, url: String = "https://api.github.com/repos/bloodkilory/QuotaNest/releases/assets/1") -> Data {

@@ -49,7 +49,7 @@ final class ChinaQuotaTransport: NSObject, URLSessionDataDelegate {
         guard !failed else { throw ChinaLoginPayload.failure("官方额度网络查询失败") }
         guard response?.statusCode == 200 else {
             let status = response?.statusCode ?? 0
-            throw ChinaLoginPayload.failure(status == 401 || status == 403 ? "官方登录失效或无权限；请打开对应客户端重新登录" : "官方额度接口返回错误（\(status)）")
+            throw ChinaLoginPayload.failure(status == 401 || status == 403 ? "官方登录失效或无权限；请打开对应客户端重新登录" : "官方额度接口返回错误（%@）",arguments:[String(status)])
         }
         return data
     }

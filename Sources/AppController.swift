@@ -24,21 +24,22 @@ final class AppController: NSObject, NSApplicationDelegate {
     private var accountReadings: [String:ConnectedAccountReading] = [:]
     private var linkedConnections = Set(UserDefaults.standard.stringArray(forKey:"ccSwitchConnections") ?? [])
     private var sourceConnected = UserDefaults.standard.bool(forKey:"ccSwitchConnected")
-    private var pinnedConnection = UserDefaults.standard.string(forKey:"pinnedCCSwitchConnection")
-    private var selectedConnection: String?
-    private var sourceError: String?
+    private let displaySelection = DisplaySelection()
+    private var previewProvider: QuotaProviderID?
+    private var pinnedConnection: String? { previewProvider == nil ? displaySelection.accountID : nil }
+    private var sourceFailure: Error?
+    private var sourceError: String? { sourceFailure?.localizedDescription }
     private var discoveringSource = false
     private var chooseAfterDiscovery = false
-    private var toolsTab = false
-    private var showingLegacy = false
+    private var showingSettings = false
     private var sourceEpoch = 0
     private let updateInstaller = UpdateInstaller(helperDigest:BundledUpdateHelperIdentity.sha256)
     private var updateState = UpdateMenuState.busy("正在检查更新…")
     private var updateRelease: UpdateRelease?
-    private var previousUpdateMessage: String?
+    private var previousUpdateMessage: UpdateInstallStatus?
     private var currentVersion: DottedVersion? { DottedVersion(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "") }
     private var readings = Dictionary(uniqueKeysWithValues: QuotaProviderID.allCases.map { ($0, ProviderReading()) })
-    private var selectedProvider = QuotaProviderID(rawValue: UserDefaults.standard.string(forKey: "selectedProvider") ?? "") ?? .codex
+    private var selectedProvider: QuotaProviderID { previewProvider ?? displaySelection.provider }
     private func preferredPeriod(for provider: QuotaProviderID) -> QuotaPeriod {
         QuotaPeriod(rawValue: UserDefaults.standard.string(forKey: "quotaPeriod." + provider.rawValue) ?? "") ?? .short
     }
@@ -93,6 +94,8 @@ final class AppController: NSObject, NSApplicationDelegate {
         RunLoop.main.add(timer, forMode: .common)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self,selector:#selector(accessibilityChanged),name:NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,object:nil)
+        NotificationCenter.default.addObserver(self,selector:#selector(languageChanged),name:Localization.changed,object:nil)
+        NotificationCenter.default.addObserver(self,selector:#selector(languageChanged),name:NSLocale.currentLocaleDidChangeNotification,object:nil)
         refresh()
         if !CommandLine.arguments.contains("--preview") { readPreviousUpdateStatus(); checkForUpdate() }
     }
@@ -100,9 +103,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         timer?.invalidate(); client.shutdown(); claudeClient.shutdown(); antigravityClient.shutdown()
         kimiClient.shutdown(); zcodeClient.shutdown(); minimaxClient.shutdown(); qoderClient.shutdown(); codebuddyClient.shutdown()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+        NotificationCenter.default.removeObserver(self)
         updateClient.cancel()
         balanceClient.shutdown()
     }
+    @objc private func languageChanged() { render() }
     @objc private func woke() { refresh() }
     @objc private func accessibilityChanged() { capsule.needsDisplay = true; if popover.isShown { buildPopover() } }
     @objc private func refresh() {
@@ -110,6 +115,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         if sourceConnected { discoverConnections() }
     }
     private func accountWallet(_ id: String) -> DeepSeekWallet? {
+        guard sourceConnected, linkedConnections.contains(id), connections.contains(where:{ $0.id == id && $0.supportsBalance }) else { return nil }
         let wallets = accountReadings[id]?.balance?.wallets ?? []
         let preferred = UserDefaults.standard.string(forKey:"balanceCurrency." + id)
         return wallets.first { $0.currency == preferred } ?? wallets.first
@@ -128,14 +134,14 @@ final class AppController: NSObject, NSApplicationDelegate {
                 let shouldChoose = self.chooseAfterDiscovery; self.chooseAfterDiscovery = false
                 switch result {
                 case .success(let values):
-                    self.connections = values; self.sourceError = nil
+                    self.connections = values; self.sourceFailure = nil
                     for id in self.accountReadings.keys { self.accountReadings[id]?.reconcile(with:values.first { $0.id == id }) }
                     if shouldChoose { self.chooseConnections() }
                     if self.sourceConnected {
                         for entry in values where self.linkedConnections.contains(entry.id) && entry.supportsBalance { self.refreshAccount(entry.id) }
                     }
                 case .failure(let error):
-                    self.sourceError = error.localizedDescription
+                    self.sourceFailure = error
                     for id in self.accountReadings.keys { self.accountReadings[id]?.discoveryFailed(error) }
                     if shouldChoose { self.chooseConnections() }
                 }
@@ -162,13 +168,13 @@ final class AppController: NSObject, NSApplicationDelegate {
         render()
     }
     private func chooseConnections() {
-        let alert = NSAlert(); alert.messageText = "连接 CC Switch 已有服务"
-        alert.informativeText = sourceError ?? "只读所选连接及其已有凭据，不修改 CC Switch。DeepSeek 凭据仅发往 api.deepseek.com 查询余额，不调用模型、不保存 Key。其他服务目前仅识别配置。"
-        alert.addButton(withTitle:"连接所选"); alert.addButton(withTitle:"取消"); alert.addButton(withTitle:"选择数据目录…")
+        let alert = NSAlert(); alert.messageText = L("连接 CC Switch 已有服务")
+        alert.informativeText = sourceError ?? L("只读所选连接及其已有凭据，不修改 CC Switch。DeepSeek 凭据仅发往 api.deepseek.com 查询余额，不调用模型、不保存 Key。其他服务目前仅识别配置。")
+        alert.addButton(withTitle:L("连接所选")); alert.addButton(withTitle:L("取消")); alert.addButton(withTitle:L("选择数据目录…"))
         let list = ConnectedAccountsView.stack(width:360,spacing:8)
         var choices: [(String,NSButton)] = []
         for entry in connections {
-            let title = entry.name + " · " + (entry.harness == "claude" ? "Claude Code" : "Codex") + (entry.supportsBalance ? " · 可查余额" : " · 仅识别")
+            let title = entry.displayName + " · " + (entry.harness == "claude" ? "Claude Code" : "Codex") + (entry.supportsBalance ? L(" · 可查余额") : L(" · 仅识别"))
             let check = NSButton(checkboxWithTitle:title,target:nil,action:nil)
             check.lineBreakMode = .byTruncatingTail; check.toolTip = title
             check.widthAnchor.constraint(lessThanOrEqualToConstant:360).isActive = true
@@ -184,14 +190,14 @@ final class AppController: NSObject, NSApplicationDelegate {
         let response = alert.runModal()
         if response == .alertThirdButtonReturn {
             let panel = NSOpenPanel(); panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.allowsMultipleSelection = false
-            panel.message = "选择包含 cc-switch.db 的 CC Switch 数据目录"
+            panel.message = L("选择包含 cc-switch.db 的 CC Switch 数据目录"); panel.prompt = L("选择")
             guard panel.runModal() == .OK, let directory = panel.url else { return }
             balanceClient.shutdown()
             sourceEpoch += 1
             discoveringSource = false; chooseAfterDiscovery = false
             connectionStore = CCSwitchStore(directory:directory,liveDirectory:FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cc-switch"))
             balanceClient = DeepSeekBalanceClient(store:connectionStore)
-            linkedConnections = []; accountReadings = [:]; connections = []; sourceConnected = false; pinnedConnection = nil
+            linkedConnections = []; accountReadings = [:]; connections = []; sourceConnected = false
             UserDefaults.standard.set(directory.path,forKey:"ccSwitchDirectory")
             saveConnections(); discoverConnections(choose:true); return
         }
@@ -199,15 +205,11 @@ final class AppController: NSObject, NSApplicationDelegate {
         linkedConnections = Set(choices.filter { $0.1.state == .on }.map { $0.0 })
         sourceConnected = !linkedConnections.isEmpty
         for id in accountReadings.keys where !linkedConnections.contains(id) { accountReadings[id]?.invalidate() }
-        if let pinnedConnection, !linkedConnections.contains(pinnedConnection) { self.pinnedConnection = nil }
-        selectedConnection = connections.first { linkedConnections.contains($0.id) }?.id
         saveConnections()
     }
     private func saveConnections() {
         UserDefaults.standard.set(Array(linkedConnections).sorted(),forKey:"ccSwitchConnections")
         UserDefaults.standard.set(sourceConnected,forKey:"ccSwitchConnected")
-        if let pinnedConnection { UserDefaults.standard.set(pinnedConnection,forKey:"pinnedCCSwitchConnection") }
-        else { UserDefaults.standard.removeObject(forKey:"pinnedCCSwitchConnection") }
     }
     @objc private func manualRefresh() { refresh(selectedProvider) }
     @objc private func authorizeClaude() { refresh(.claude, allowPrompt: true) }
@@ -217,7 +219,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         if popover.isShown { buildPopover() }
     }
     @objc private func checkForUpdate() {
-        guard let version = currentVersion else { showUpdateState(.failed("无法识别当前应用版本")); return }
+        guard let version = currentVersion else { showUpdateState(.failed(UpdateError("无法识别当前应用版本"))); return }
         updateRelease = nil; showUpdateState(.busy("正在检查更新…"))
         updateClient.check(currentVersion:version) { [weak self] result in
             DispatchQueue.main.async {
@@ -225,7 +227,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                 switch result {
                 case .success(.upToDate): self.showUpdateState(.current(version.text))
                 case .success(.available(let release)): self.updateRelease = release; self.showUpdateState(.available(release.version.text))
-                case .failure(let error): self.showUpdateState(.failed(error.localizedDescription))
+                case .failure(let error): self.showUpdateState(.failed(error))
                 }
             }
         }
@@ -235,14 +237,14 @@ final class AppController: NSObject, NSApplicationDelegate {
         showUpdateState(.busy("正在下载并校验安装包…"))
         updateClient.download(release) { [weak self] result in
             switch result {
-            case .failure(let error): DispatchQueue.main.async { self?.showUpdateState(.failed(error.localizedDescription)) }
+            case .failure(let error): DispatchQueue.main.async { self?.showUpdateState(.failed(error)) }
             case .success(let dmg):
                 DispatchQueue.main.async { self?.showUpdateState(.busy("正在验证更新应用…")) }
                 self?.updateInstaller.stage(dmg,currentVersion:version) { preparedResult in
                     DispatchQueue.main.async {
                         guard let self else { return }
                         switch preparedResult {
-                        case .failure(let error): self.showUpdateState(.failed(error.localizedDescription))
+                        case .failure(let error): self.showUpdateState(.failed(error))
                         case .success(let prepared): self.confirmUpdate(prepared,release:release)
                         }
                     }
@@ -252,9 +254,9 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
     private func confirmUpdate(_ prepared: PreparedUpdate, release: UpdateRelease) {
         popover.performClose(nil)
-        let alert = NSAlert(); alert.messageText = "安装余度 QuotaNest v" + release.version.text + "？"
-        alert.informativeText = "下载及校验已完成。应用将退出、保留旧版本备份并安装更新，随后重新打开。" + (prepared.target.isUser ? "" : "\n需要时 macOS 会请求管理员授权。")
-        alert.addButton(withTitle:"安装并重启"); alert.addButton(withTitle:"取消")
+        let alert = NSAlert(); alert.messageText = L("安装余度 QuotaNest v%@？",release.version.text)
+        alert.informativeText = L("下载及校验已完成。应用将退出、保留旧版本备份并安装更新，随后重新打开。") + (prepared.target.isUser ? "" : L("\n需要时 macOS 会请求管理员授权。"))
+        alert.addButton(withTitle:L("安装并重启")); alert.addButton(withTitle:L("取消"))
         guard alert.runModal() == .alertFirstButtonReturn else { UpdatePaths.clean(prepared.directory); showUpdateState(.available(release.version.text)); return }
         showUpdateState(.busy("正在准备安装，请完成系统授权…"))
         UserDefaults.standard.set(prepared.directory.path,forKey:"pendingUpdateDirectory")
@@ -262,7 +264,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 switch result {
                 case .success: NSApp.terminate(nil)
-                case .failure(let error): self?.showUpdateState(.failed(error.localizedDescription))
+                case .failure(let error): self?.showUpdateState(.failed(error))
                 }
             }
         }
@@ -273,7 +275,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         guard UpdatePaths.samePath(directory.deletingLastPathComponent(),UpdatePaths.root()), directory.lastPathComponent.hasPrefix("stage.") else { return }
         if let data = try? Data(contentsOf:directory.appendingPathComponent("status.json")), data.count <= 16384,
            let status = try? JSONDecoder().decode(UpdateInstallStatus.self,from:data), ["failed","installed"].contains(status.state) {
-            previousUpdateMessage = status.message
+            previousUpdateMessage = status
             UserDefaults.standard.removeObject(forKey:"pendingUpdateDirectory")
             UpdatePaths.clean(directory)
         }
@@ -292,7 +294,7 @@ final class AppController: NSObject, NSApplicationDelegate {
                     self.readings[provider]?.lastSuccess = Date()
                     self.readings[provider]?.successes += 1
                     self.readings[provider]?.error = nil
-                case .failure(let error): self.readings[provider]?.error = error.localizedDescription
+                case .failure(let error): self.readings[provider]?.failure = error
                 }
                 self.render(); self.writeDiagnostics()
                 if CommandLine.arguments.contains("--preview") && !self.readings.values.contains(where: { $0.refreshing }) { self.exportPreview() }
@@ -309,17 +311,15 @@ final class AppController: NSObject, NSApplicationDelegate {
         case .codebuddy: codebuddyClient.fetch(allowPrompt: allowPrompt, completion: completion)
         }
     }
-    @objc private func selectProvider(_ sender: NSPopUpButton) {
-        pinnedConnection = nil; saveConnections()
-        selectedProvider = QuotaProviderID.allCases[sender.indexOfSelectedItem]
-        UserDefaults.standard.set(selectedProvider.rawValue, forKey: "selectedProvider")
+    private func selectSource(_ source: DisplaySource) {
+        displaySelection.select(source)
         render(); writeDiagnostics()
     }
     private func exportPreview() {
-        showingLegacy = true
+        showingSettings = false
         NSApp.appearance = NSAppearance(named: .aqua)
         for provider in QuotaProviderID.allCases {
-            selectedProvider = provider
+            previewProvider = provider
             buildPopover()
             guard let view = popover.contentViewController?.view else { continue }
             view.appearance = NSAppearance(named: .aqua)
@@ -364,14 +364,14 @@ final class AppController: NSObject, NSApplicationDelegate {
     private func render() {
         if let id = pinnedConnection {
             let entry = accountReadings[id] ?? ConnectedAccountReading(), wallet = accountWallet(id)
-            capsule.showsWallet = true; capsule.remaining = nil; capsule.periodText = "额"
-            capsule.canSwitchPeriod = (entry.balance?.wallets.count ?? 0) > 1
-            capsule.stale = entry.error != nil || sourceError != nil
+            capsule.showsWallet = true; capsule.remaining = nil; capsule.periodText = wallet?.currency == "CNY" ? "¥" : wallet?.currency == "USD" ? "$" : "—"
+            capsule.canSwitchPeriod = wallet != nil && (entry.balance?.wallets.count ?? 0) > 1
+            capsule.stale = entry.error != nil || sourceError != nil || !connections.contains { $0.id == id && $0.supportsBalance && linkedConnections.contains(id) }
             capsule.text = wallet.map { $0.capsuleAmount + (capsule.stale ? "!" : "") } ?? (entry.refreshing ? "···" : "—")
             let sourceExists = connections.contains { $0.id == id } && linkedConnections.contains(id)
-            let title = "DeepSeek 官方 API 余额：" + (wallet?.displayAmount ?? "尚无有效读数") + (sourceExists ? "" : "；来源已移除或不可读") + (capsule.stale ? "；上次数据已过期" : "")
-            capsule.detailButton.toolTip = title; capsule.detailButton.setAccessibilityLabel(title + "，打开账户详情")
-            capsule.periodButton.toolTip = capsule.canSwitchPeriod ? "切换余额币种" : "账户钱包余额"
+            let title = L("DeepSeek 官方 API 余额：") + (wallet?.displayAmount ?? L("尚无有效读数")) + (sourceExists ? "" : L("；来源已移除或不可读")) + (capsule.stale ? L("；上次数据已过期") : "")
+            capsule.detailButton.toolTip = title; capsule.detailButton.setAccessibilityLabel(title + L("，打开账户详情"))
+            capsule.periodButton.toolTip = capsule.canSwitchPeriod ? L("切换余额币种") : L("账户钱包余额")
             capsule.periodButton.setAccessibilityLabel(capsule.periodButton.toolTip!)
             if popover.isShown { buildPopover() }
             return
@@ -385,10 +385,10 @@ final class AppController: NSObject, NSApplicationDelegate {
         let value = remaining.map { String(format: "%.0f%%", floor($0)) + (errorMessage == nil ? "" : "!") } ?? (refreshing ? "···" : "—")
         capsule.provider = selectedProvider
         capsule.text = value
-        let title = "\(selectedProvider.title)\(selectedProvider == .antigravity ? " Gemini" : "") \(capsule.periodText) 剩余额度 \(value)" + (errorMessage == nil ? "" : "，查询失败或数据过期")
-        capsule.detailButton.setAccessibilityLabel(title + "，打开详情")
+        let title = L("%@ %@ 剩余额度 %@",selectedProvider.title + (selectedProvider == .antigravity ? " Gemini" : ""),capsule.periodText,value) + (errorMessage == nil ? "" : L("，查询失败或数据过期"))
+        capsule.detailButton.setAccessibilityLabel(title + L("，打开详情"))
         capsule.detailButton.toolTip = title
-        let periodHelp = "当前 " + capsule.periodText + (capsule.canSwitchPeriod ? "，点击切换额度周期" : "，暂无其他有效周期")
+        let periodHelp = L("当前 ") + capsule.periodText + (capsule.canSwitchPeriod ? L("，点击切换额度周期") : L("，暂无其他有效周期"))
         capsule.periodButton.setAccessibilityLabel(periodHelp)
         capsule.periodButton.toolTip = periodHelp
         if popover.isShown { buildPopover() }
@@ -398,30 +398,15 @@ final class AppController: NSObject, NSApplicationDelegate {
         buildPopover()
         if let button = status.button { popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY); NSApp.activate(ignoringOtherApps: true) }
     }
-    private func label(_ value: String, size: CGFloat = 12, color: NSColor = .labelColor, bold: Bool = false) -> NSTextField {
-        let field = NSTextField(wrappingLabelWithString: value)
-        field.font = .systemFont(ofSize: size, weight: bold ? .semibold : .regular)
-        field.textColor = color
-        field.setContentCompressionResistancePriority(.required, for: .vertical)
-        field.widthAnchor.constraint(equalToConstant: 322).isActive = true
-        return field
-    }
     private func buildPopover() {
         let content: NSStackView
-        if showingLegacy {
-            content = ConnectedAccountsView.stack(width:380)
-            content.edgeInsets = NSEdgeInsets(top:12,left:11,bottom:0,right:11)
-            content.addArrangedSubview(AccountActionButton("返回账户",id:"back-accounts") { self.showingLegacy = false; self.buildPopover() })
-            content.addArrangedSubview(legacyContent())
-        } else {
-            let model = ConnectedAccountsPresentation(connections:connections,enabled:linkedConnections,readings:accountReadings,selectedID:selectedConnection ?? pinnedConnection,pinnedID:pinnedConnection,currency:selectedConnection.flatMap { UserDefaults.standard.string(forKey:"balanceCurrency." + $0) },sourceError:sourceError,discovering:discoveringSource,tools:toolsTab)
-            content = ConnectedAccountsView.build(model,actions:ConnectedAccountsActions(
-                changeTab:{ self.toolsTab = $0; self.buildPopover() },
-                select:{ self.selectedConnection = $0; self.buildPopover() },
-                pin:{ id in self.pinnedConnection = self.pinnedConnection == id ? nil : id; self.saveConnections(); self.render(); self.writeDiagnostics() },
+        if showingSettings { content = settingsContent() }
+        else {
+            let model = ConnectedAccountsPresentation(connections:connections,enabled:linkedConnections,readings:accountReadings,source:previewProvider.map { .official($0) } ?? displaySelection.source,currency:pinnedConnection.flatMap { UserDefaults.standard.string(forKey:"balanceCurrency." + $0) },sourceError:sourceError)
+            content = ConnectedAccountsView.build(model,officialDetails:pinnedConnection == nil ? officialDetails() : nil,actions:ConnectedAccountsActions(
+                select:{ self.selectSource($0) },
                 refresh:{ self.refreshAccount($0) },
-                connect:{ self.discoverConnections(choose:true) },
-                legacy:{ self.showingLegacy = true; self.buildPopover() }))
+                settings:{ self.showingSettings = true; self.buildPopover() }))
         }
         let focused = (popover.contentViewController?.view.window?.firstResponder as? NSView)?.identifier
         content.layoutSubtreeIfNeeded()
@@ -439,88 +424,26 @@ final class AppController: NSObject, NSApplicationDelegate {
             if let target = find(controller.view) { controller.view.window?.makeFirstResponder(target) }
         }
     }
-    private func legacyContent() -> NSStackView {
-        let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 9
-        stack.edgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
-        stack.addArrangedSubview(label("余度 QuotaNest", size: 18, bold: true))
-        let picker = NSPopUpButton(frame: .zero, pullsDown: false)
-        picker.addItems(withTitles: QuotaProviderID.allCases.map { $0.title + ($0.experimental ? " · 实验" : "") })
-        picker.target = self; picker.action = #selector(selectProvider(_:))
-        picker.selectItem(at: QuotaProviderID.allCases.firstIndex(of: selectedProvider)!)
-        picker.widthAnchor.constraint(equalToConstant: 322).isActive = true
-        stack.addArrangedSubview(picker)
-        stack.addArrangedSubview(label(selectedProvider.title, size: 16, bold: true))
-        if selectedProvider.experimental {
-            stack.addArrangedSubview(label("实验性接入 · 尚未用真实账号验证", size: 11, color: .systemOrange))
-        }
-        stack.addArrangedSubview(label(selectedProvider.loginHelp, size: 11, color: .secondaryLabelColor))
-        if let selected = snapshot?.selected {
-            let source = selectedProvider == .codex ? (selected.1.planType ?? "Codex 登录账号") : "本机 " + selectedProvider.title + " 官方登录"
-            stack.addArrangedSubview(label(source + " · 胶囊：" + (selectedProvider == .antigravity ? "Gemini " : "") + reading.periodLabel(for: selectedProvider, period: displayedPeriod), color: .secondaryLabelColor))
-        }
-        if let errorMessage { stack.addArrangedSubview(label("⚠ \(errorMessage)" + (snapshot == nil ? "" : "\n当前百分比为上次成功查询结果。"), color: .systemOrange)) }
-        if let snapshot {
-            for (key, bucket) in snapshot.namedBuckets {
-                stack.addArrangedSubview(label(bucket.limitName ?? key, bold: true))
-                if bucket.windows.isEmpty { stack.addArrangedSubview(label("暂无可用额度窗口", color: .secondaryLabelColor)) }
-                for window in bucket.windows {
-                    let value = window.remaining.map { String(format: "%.1f%%", $0) } ?? "未知"
-                    stack.addArrangedSubview(label("\(window.title)    剩余 \(value)", size: 14, bold: true))
-                    stack.addArrangedSubview(label(resetText(window.resetsAt), color: .secondaryLabelColor))
-                    let bar = NSProgressIndicator(); bar.isIndeterminate = false; bar.minValue = 0; bar.maxValue = 100; bar.doubleValue = window.remaining ?? 0
-                    bar.widthAnchor.constraint(equalToConstant: 322).isActive = true
-                    if window.remaining != nil { stack.addArrangedSubview(bar) }
-                }
-                if let credits = bucket.credits {
-                    stack.addArrangedSubview(label("Credits 余额：\(credits.unlimited == true ? "无限" : credits.balance ?? "未提供")", color: .secondaryLabelColor))
-                }
-            }
-        } else { stack.addArrangedSubview(label(refreshing ? "正在读取官方套餐…" : "尚未取得额度", color: .secondaryLabelColor)) }
-        let time = lastSuccess.map { dateString($0) } ?? "尚未成功"
-        stack.addArrangedSubview(label("更新：\(time)\n每 1 分钟刷新 · \(TimeZone.current.identifier)", size: 11, color: .secondaryLabelColor))
-        let refreshButton = NSButton(title: refreshing ? "正在刷新…" : "立即刷新", target: self, action: #selector(manualRefresh)); refreshButton.isEnabled = !refreshing
-        stack.addArrangedSubview(refreshButton)
-        if selectedProvider == .claude && errorMessage != nil {
-            let authorize = NSButton(title: "授权 Claude 登录读取", target: self, action: #selector(authorizeClaude))
-            authorize.isEnabled = !refreshing; stack.addArrangedSubview(authorize)
-        }
-        if selectedProvider == .codebuddy && errorMessage != nil {
-            let authorize = NSButton(title: "授权 CodeBuddy 登录读取", target: self, action: #selector(authorizeCodeBuddy))
-            authorize.isEnabled = !refreshing; stack.addArrangedSubview(authorize)
-        }
-        stack.addArrangedSubview(label("应用更新", bold:true))
-        stack.addArrangedSubview(label("当前版本 v" + (currentVersion?.text ?? "未知"),size:11,color:.secondaryLabelColor))
-        stack.addArrangedSubview(label(updateState.title,size:11,color:.secondaryLabelColor))
-        if let previousUpdateMessage { stack.addArrangedSubview(label(previousUpdateMessage,size:11,color:.systemOrange)) }
-        let checkButton = NSButton(title:"检查更新",target:self,action:#selector(checkForUpdate)); checkButton.isEnabled = updateState.isActionEnabled
-        stack.addArrangedSubview(checkButton)
-        if let release = updateRelease {
-            if (try? UpdateTarget.resolve(runningBundle:Bundle.main.bundleURL)) != nil {
-                let updateButton = NSButton(title:"更新到 v" + release.version.text,target:self,action:#selector(installUpdate)); updateButton.isEnabled = updateState.isActionEnabled
-                stack.addArrangedSubview(updateButton)
-            } else { stack.addArrangedSubview(label("请安装至 ~/Applications 或 /Applications 后更新",size:11,color:.secondaryLabelColor)) }
-        }
-        let login = NSButton(checkboxWithTitle: "登录时启动", target: self, action: #selector(toggleLogin(_:))); login.state = LoginItemManager.enabled ? .on : .off
-        stack.addArrangedSubview(login)
-        stack.addArrangedSubview(NSButton(title: "退出余度 QuotaNest", target: self, action: #selector(quit)))
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        stack.widthAnchor.constraint(equalToConstant: 358).isActive = true
-        return stack
+    private func officialDetails() -> NSStackView {
+        OfficialQuotaView.build(provider:selectedProvider,reading:reading,displayedPeriod:displayedPeriod,
+            refresh:{ self.manualRefresh() },authorize:{
+                if self.selectedProvider == .claude { self.authorizeClaude() }
+                else if self.selectedProvider == .codebuddy { self.authorizeCodeBuddy() }
+            })
     }
-    private func dateString(_ date: Date) -> String {
-        let formatter = DateFormatter(); formatter.locale = Locale(identifier: "zh_CN"); formatter.dateFormat = "MM-dd HH:mm:ss"; return formatter.string(from: date)
+    private func settingsContent() -> NSStackView {
+        let model = SettingsPresentation(connections:connections,enabled:linkedConnections,sourceError:sourceError,discovering:discoveringSource,language:Localization.shared.preference,version:currentVersion?.text,updateState:updateState,previousStatus:previousUpdateMessage,availableVersion:updateRelease?.version.text,canInstall:(try? UpdateTarget.resolve(runningBundle:Bundle.main.bundleURL)) != nil,loginEnabled:LoginItemManager.enabled)
+        return SettingsView.build(model,actions:SettingsActions(
+            back:{ self.showingSettings = false; self.buildPopover() },
+            language:{ Localization.shared.preference = $0 },
+            connect:{ self.discoverConnections(choose:true) },
+            checkUpdate:{ self.checkForUpdate() },installUpdate:{ self.installUpdate() },
+            login:{ self.toggleLogin($0) },quit:{ self.quit() }))
     }
-    private func resetText(_ timestamp: Double?) -> String {
-        guard let timestamp, timestamp.isFinite, timestamp > 0, timestamp <= 253402300799 else { return "重置时间：未提供" }
-        let date = Date(timeIntervalSince1970: timestamp), seconds = date.timeIntervalSinceNow
-        if seconds <= 0 { return "重置：\(dateString(date)) · 等待服务更新" }
-        let hours = Int(seconds / 3600), minutes = Int(seconds.truncatingRemainder(dividingBy: 3600) / 60)
-        return "重置：\(dateString(date))\n还有 \(hours / 24) 天 \(hours % 24) 小时 \(minutes) 分钟"
-    }
-    @objc private func toggleLogin(_ sender: NSButton) {
-        do { try LoginItemManager.setEnabled(sender.state == .on); writeDiagnostics() }
-        catch { let alert = NSAlert(); alert.messageText = "无法更新登录项"; alert.informativeText = error.localizedDescription; alert.runModal() }
-        sender.state = LoginItemManager.enabled ? .on : .off
+    private func toggleLogin(_ enabled: Bool) {
+        do { try LoginItemManager.setEnabled(enabled); writeDiagnostics() }
+        catch { let alert = NSAlert(); alert.messageText = L("无法更新登录项"); alert.informativeText = error.localizedDescription; alert.runModal() }
+        render()
     }
     @objc private func quit() { NSApp.terminate(nil) }
 }

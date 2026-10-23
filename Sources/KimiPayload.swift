@@ -24,13 +24,13 @@ enum KimiPayload {
         var buckets: [String: QuotaBucket] = [:]
         func bucket(_ key: String, _ title: String, _ primary: QuotaWindow?, _ secondary: QuotaWindow? = nil) {
             if primary != nil || secondary != nil {
-                buckets[key] = QuotaBucket(limitId: key, limitName: title, planType: nil, primary: primary, secondary: secondary, credits: nil)
+                buckets[key] = QuotaBucket(limitId: key, limitName: title, planType: nil, primary: primary, secondary: secondary, credits: nil, nameKey:title)
             }
         }
         if let usages = root["usages"] as? [String: Any] {
             func window(_ key: String, _ minutes: Int?) -> QuotaWindow? {
                 guard let row = usages[key] as? [String: Any], let ratio = number(row["used_ratio"]), ratio >= 0, (ratio * 100).isFinite else { return nil }
-                return QuotaWindow(usedPercent: ratio * 100, windowDurationMins: minutes, resetsAt: timestamp(row["reset_time"]), periodLabel: minutes == nil ? "月度额度" : nil)
+                return QuotaWindow(usedPercent: ratio * 100, windowDurationMins: minutes, resetsAt: timestamp(row["reset_time"]), periodLabel: minutes == nil ? "月度额度" : nil, localizesPeriodLabel:true)
             }
             bucket("kimi", "Kimi Code", window("limit_5h", 300), window("limit_7d", 10080))
             bucket("kimi-month-total", "Kimi 月度总额度", window("limit_month_total", nil))

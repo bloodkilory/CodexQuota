@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+useTestLanguage()
 func check(_ condition: Bool, _ text: String) { if !condition { fatalError(text) }; print("PASS \(text)") }
 let runner = BoundedCommand()
 let output = try runner.run("/bin/echo", arguments: ["hello world"], environment: [:])

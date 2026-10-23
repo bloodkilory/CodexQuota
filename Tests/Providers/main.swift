@@ -1,4 +1,5 @@
 import Foundation
+useTestLanguage()
 func expect(_ condition: Bool, _ message: String) { if !condition { fatalError(message) }; print("PASS \(message)") }
 let claude = try ProviderPayload.claude(Data(#"{"five_hour":{"utilization":12,"resets_at":"2026-10-12T20:00:00Z"},"seven_day":{"utilization":81,"resets_at":"2026-10-19T20:00:00Z"}}"#.utf8))
 expect(claude.remaining == 19, "Claude utilization converted into remaining")

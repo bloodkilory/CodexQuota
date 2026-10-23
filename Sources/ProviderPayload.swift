@@ -2,7 +2,8 @@ import Foundation
 import CoreFoundation
 struct ProviderPayloadError: LocalizedError {
     let message: String
-    var errorDescription: String? { message }
+    var arguments: [String] = []
+    var errorDescription: String? { Localization.shared.text(message,arguments) }
 }
 enum ProviderPayload {
     static func timestamp(_ value: Any?) -> Double? {
@@ -27,10 +28,10 @@ enum ProviderPayload {
             return QuotaWindow(usedPercent: used, windowDurationMins: minutes, resetsAt: timestamp(row["resets_at"]))
         }
         var buckets: [String: QuotaBucket] = [:]
-        let main = QuotaBucket(limitId: "claude", limitName: "Claude 官方套餐", planType: nil, primary: window("five_hour", 300), secondary: window("seven_day", 10080), credits: nil)
+        let main = QuotaBucket(limitId: "claude", limitName: "Claude 官方套餐", planType: nil, primary: window("five_hour", 300), secondary: window("seven_day", 10080), credits: nil, nameKey:"Claude 官方套餐")
         if main.remaining != nil { buckets["claude"] = main }
         for (key, title) in [("seven_day_sonnet", "Sonnet 周额度"), ("seven_day_opus", "Opus 周额度")] {
-            if let value = window(key, 10080) { buckets[key] = QuotaBucket(limitId: key, limitName: title, planType: nil, primary: value, secondary: nil, credits: nil) }
+            if let value = window(key, 10080) { buckets[key] = QuotaBucket(limitId: key, limitName: title, planType: nil, primary: value, secondary: nil, credits: nil, nameKey:title) }
         }
         guard !buckets.isEmpty else { throw ProviderPayloadError(message: "Claude 未提供可用额度；请确认官方订阅及登录权限") }
         return QuotaSnapshot(rateLimits: nil, rateLimitsByLimitId: buckets)
@@ -51,7 +52,7 @@ enum ProviderPayload {
             }
             if weekly != nil || session != nil {
                 let key = "group-\(index)"
-                buckets[key] = QuotaBucket(limitId: key, limitName: name, planType: nil, primary: weekly, secondary: session, credits: nil)
+                buckets[key] = QuotaBucket(limitId: key, limitName: name, planType: nil, primary: weekly, secondary: session, credits: nil, nameKey:group["name"] == nil ? "额度组 %@" : nil, nameArguments:[String(index + 1)])
             }
         }
         guard !buckets.isEmpty else { throw ProviderPayloadError(message: "Antigravity 未返回可用额度窗口") }

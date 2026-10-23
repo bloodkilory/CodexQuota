@@ -23,7 +23,7 @@ private final class UpdateTransferDelegate: NSObject, URLSessionDataDelegate {
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        if status != 200 { failure = UpdateError(status == 403 || status == 429 ? "GitHub 请求受限，请稍后重试" : "GitHub 更新请求失败（\(status)）") }
+        if status != 200 { failure = UpdateError(status == 403 || status == 429 ? "GitHub 请求受限，请稍后重试" : "GitHub 更新请求失败（%@）",arguments:[String(status)]) }
         else if response.expectedContentLength > Int64(limit) { failure = UpdateError("更新下载超过大小限制") }
         completionHandler(failure == nil ? .allow : .cancel)
     }

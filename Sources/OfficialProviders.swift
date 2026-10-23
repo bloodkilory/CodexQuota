@@ -41,11 +41,11 @@ final class ClaudeQuotaClient {
                 request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
                 request.setValue("application/json", forHTTPHeaderField: "Accept")
                 self.session.dataTask(with: request) { data, response, error in
-                    if let error { completion(.failure(QuotaError(message: "Claude 网络查询失败（\((error as NSError).code)）"))); return }
+                    if let error { completion(.failure(QuotaError(message: "Claude 网络查询失败（%@）",arguments:[String((error as NSError).code)]))); return }
                     guard let http = response as? HTTPURLResponse, http.statusCode == 200, let data else {
                         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-                        let message = code == 401 ? "Claude 登录失效；请打开 Claude Code 重新登录" : code == 403 ? "Claude 登录缺少额度读取权限；请用官方订阅账号重新登录" : code == 429 ? "Claude 查询过于频繁；等待下次自动刷新" : "Claude 额度接口返回错误（\(code)）"
-                        completion(.failure(QuotaError(message: message))); return
+                        let message = code == 401 ? "Claude 登录失效；请打开 Claude Code 重新登录" : code == 403 ? "Claude 登录缺少额度读取权限；请用官方订阅账号重新登录" : code == 429 ? "Claude 查询过于频繁；等待下次自动刷新" : "Claude 额度接口返回错误（%@）"
+                        completion(.failure(QuotaError(message: message,arguments:[String(code)]))); return
                     }
                     completion(Result { try ProviderPayload.claude(data) })
                 }.resume()
