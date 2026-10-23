@@ -119,23 +119,24 @@ final class AppController: NSObject, NSApplicationDelegate {
         guard !discoveringSource else { return }
         discoveringSource = true
         let store = connectionStore
+        let epoch = sourceEpoch
         sourceQueue.async {
             let result = Result { try store.discover() }
             DispatchQueue.main.async {
+                guard self.sourceEpoch == epoch else { return }
                 self.discoveringSource = false
                 let shouldChoose = self.chooseAfterDiscovery; self.chooseAfterDiscovery = false
                 switch result {
                 case .success(let values):
                     self.connections = values; self.sourceError = nil
-                    let ids = Set(values.map(\.id))
-                    for id in self.accountReadings.keys where !ids.contains(id) { self.accountReadings[id]?.invalidate() }
+                    for id in self.accountReadings.keys { self.accountReadings[id]?.reconcile(with:values.first { $0.id == id }) }
                     if shouldChoose { self.chooseConnections() }
                     if self.sourceConnected {
                         for entry in values where self.linkedConnections.contains(entry.id) && entry.supportsBalance { self.refreshAccount(entry.id) }
                     }
                 case .failure(let error):
                     self.sourceError = error.localizedDescription
-                    for id in self.accountReadings.keys { self.accountReadings[id]?.invalidate() }
+                    for id in self.accountReadings.keys { self.accountReadings[id]?.discoveryFailed(error) }
                     if shouldChoose { self.chooseConnections() }
                 }
                 self.render(); self.writeDiagnostics()
@@ -187,6 +188,7 @@ final class AppController: NSObject, NSApplicationDelegate {
             guard panel.runModal() == .OK, let directory = panel.url else { return }
             balanceClient.shutdown()
             sourceEpoch += 1
+            discoveringSource = false; chooseAfterDiscovery = false
             connectionStore = CCSwitchStore(directory:directory,liveDirectory:FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cc-switch"))
             balanceClient = DeepSeekBalanceClient(store:connectionStore)
             linkedConnections = []; accountReadings = [:]; connections = []; sourceConnected = false; pinnedConnection = nil
@@ -308,6 +310,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         }
     }
     @objc private func selectProvider(_ sender: NSPopUpButton) {
+        pinnedConnection = nil; saveConnections()
         selectedProvider = QuotaProviderID.allCases[sender.indexOfSelectedItem]
         UserDefaults.standard.set(selectedProvider.rawValue, forKey: "selectedProvider")
         render(); writeDiagnostics()

@@ -13,6 +13,13 @@ struct ConnectedAccountReading {
     }
     mutating func sourceChanged() { balance = nil; lastSuccess = nil; error = nil }
     mutating func invalidate() { generation += 1; refreshing = false; sourceChanged() }
+    mutating func reconcile(with connection: CCSwitchConnection?) {
+        if connection?.supportsBalance != true { invalidate() }
+    }
+    mutating func discoveryFailed(_ failure: Error) {
+        if (failure as? ConnectedAccountError)?.isTransient != true { invalidate() }
+        error = failure.localizedDescription
+    }
     mutating func complete(_ result: Result<DeepSeekBalance,Error>, generation: Int) -> Bool {
         guard generation == self.generation else { return false }
         refreshing = false

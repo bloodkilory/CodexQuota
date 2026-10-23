@@ -5,6 +5,7 @@ import Darwin
 
 struct ConnectedAccountError: LocalizedError {
     let message: String
+    var isTransient = false
     var errorDescription: String? { message }
 }
 struct CCSwitchConnection: Codable, Equatable {
@@ -26,7 +27,10 @@ struct CCSwitchStore {
     init(directory: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cc-switch"), liveDirectory: URL? = nil) {
         self.directory = directory; self.liveDirectory = liveDirectory ?? directory
     }
-    private func failure(_ text: String) -> ConnectedAccountError { ConnectedAccountError(message:text) }
+    private func failure(_ text: String, code: Int32 = SQLITE_ERROR) -> ConnectedAccountError {
+        let busy = code == SQLITE_BUSY || code == SQLITE_LOCKED
+        return ConnectedAccountError(message:busy ? "CC Switch 正在更新配置；下次自动检查" : text,isTransient:busy)
+    }
     private func withDatabase<T>(_ body: (OpaquePointer) throws -> T) throws -> T {
         let file = directory.appendingPathComponent("cc-switch.db")
         var info = stat()
@@ -34,12 +38,15 @@ struct CCSwitchStore {
         var pointer: OpaquePointer?
         let result = sqlite3_open_v2(file.path,&pointer,SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX,nil)
         defer { if let pointer { sqlite3_close(pointer) } }
-        guard result == SQLITE_OK, let db = pointer else { throw failure("无法只读打开 CC Switch 数据库") }
+        guard result == SQLITE_OK, let db = pointer else { throw failure("无法只读打开 CC Switch 数据库",code:result) }
         sqlite3_busy_timeout(db,200)
         var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db,"PRAGMA user_version",-1,&statement,nil) == SQLITE_OK else { throw failure("CC Switch 数据格式不兼容") }
+        let prepared = sqlite3_prepare_v2(db,"PRAGMA user_version",-1,&statement,nil)
+        guard prepared == SQLITE_OK else { throw failure("CC Switch 数据格式不兼容",code:prepared) }
         defer { sqlite3_finalize(statement) }
-        guard sqlite3_step(statement) == SQLITE_ROW, (18...20).contains(Int(sqlite3_column_int(statement,0))) else { throw failure("CC Switch 数据版本不兼容；本版支持 schema 18–20") }
+        let step = sqlite3_step(statement)
+        guard step == SQLITE_ROW else { throw failure("CC Switch 数据版本读取失败",code:step) }
+        guard (18...20).contains(Int(sqlite3_column_int(statement,0))) else { throw failure("CC Switch 数据版本不兼容；本版支持 schema 18–20") }
         return try body(db)
     }
     private func rows(db: OpaquePointer, id: String? = nil) throws -> [(String,String,String,String,Bool)] {
@@ -48,7 +55,8 @@ struct CCSwitchStore {
         let configuration = id == nil ? "json_object('env',json_object('ANTHROPIC_BASE_URL',json_extract(settings_config,'$.env.ANTHROPIC_BASE_URL')),'config',json_extract(settings_config,'$.config'))" : "settings_config"
         let query = "SELECT id,app_type,name," + configuration + ",is_current FROM providers WHERE app_type IN ('claude','codex')" + (id == nil ? " ORDER BY app_type,name LIMIT 501" : " AND app_type=? AND id=? LIMIT 1")
         var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db,query,-1,&statement,nil) == SQLITE_OK else { throw failure("CC Switch 服务配置格式不兼容") }
+        let prepared = sqlite3_prepare_v2(db,query,-1,&statement,nil)
+        guard prepared == SQLITE_OK else { throw failure("CC Switch 服务配置格式不兼容",code:prepared) }
         defer { sqlite3_finalize(statement) }
         if let id {
             let parts = id.split(separator:"|",maxSplits:1,omittingEmptySubsequences:false)
@@ -61,7 +69,7 @@ struct CCSwitchStore {
         while true {
             let step = sqlite3_step(statement)
             if step == SQLITE_DONE { break }
-            guard step == SQLITE_ROW else { throw failure(step == SQLITE_BUSY || step == SQLITE_LOCKED ? "CC Switch 正在更新配置；下次自动检查" : "CC Switch 服务配置读取失败") }
+            guard step == SQLITE_ROW else { throw failure("CC Switch 服务配置读取失败",code:step) }
             guard result.count < 500 else { throw failure("CC Switch 服务数量超出读取范围") }
             var values: [String] = []
             for column in 0..<4 {

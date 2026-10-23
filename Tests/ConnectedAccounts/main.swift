@@ -181,3 +181,46 @@ var observedRotation = false
 rotationClient.fetch(connectionID:deepseek.id,onSourceChange:{ observedRotation = true }) { _ in rotationDone.signal() }
 check(rotationDone.wait(timeout:.now()+5) == .success && observedRotation,"rotation clears previous reading before replacement query finishes")
 rotationClient.shutdown()
+
+var replacedReading = ConnectedAccountReading()
+let replacedGeneration = replacedReading.begin()!
+_ = replacedReading.complete(.success(balance),generation:replacedGeneration)
+try insert("ds","claude","Changed service",["env":["ANTHROPIC_BASE_URL":"https://third-party.example/anthropic","ANTHROPIC_AUTH_TOKEN":"fixture-secret-other"]])
+let replacedConnection = try store.discover().first { $0.id == deepseek.id }
+replacedReading.reconcile(with:replacedConnection)
+check(replacedReading.balance == nil && replacedReading.lastSuccess == nil,"same profile changed to unsupported origin clears old balance")
+check(!replacedReading.complete(.success(balance),generation:replacedGeneration),"obsolete result cannot restore unsupported-origin balance")
+
+var busyReading = ConnectedAccountReading()
+let busyGeneration = busyReading.begin()!
+_ = busyReading.complete(.success(balance),generation:busyGeneration)
+sql("BEGIN EXCLUSIVE;")
+do { _ = try store.discover(); fatalError("FAIL source should be busy") }
+catch { busyReading.discoveryFailed(error) }
+sql("ROLLBACK;")
+check(busyReading.balance == balance && busyReading.lastSuccess != nil && busyReading.error != nil,"busy source preserves explicitly stale successful balance")
+busyReading.discoveryFailed(ConnectedAccountError(message:"missing"))
+check(busyReading.balance == nil,"unreadable source clears account attribution")
+
+try insert("ds","claude","DeepSeek A",["env":["ANTHROPIC_BASE_URL":"https://api.deepseek.com/anthropic","ANTHROPIC_AUTH_TOKEN":"fixture-token-A"]])
+try insert("second","claude","DeepSeek B",["env":["ANTHROPIC_BASE_URL":"https://api.deepseek.com/anthropic","ANTHROPIC_AUTH_TOKEN":"fixture-token-B"]])
+try insert("codex-ds","codex","DeepSeek A in Codex",["auth":["OPENAI_API_KEY":"fixture-token-A"],"config":"model_provider = \"ds\"\n[model_providers.ds]\nbase_url = \"https://api.deepseek.com/v1\"\n"])
+let occupied = DispatchSemaphore(value:0), releaseTransfers = DispatchSemaphore(value:0), tripleDone = DispatchSemaphore(value:0)
+requests = 0
+BalanceFixture.handler = { _,fixture in
+    DispatchQueue.global().async {
+        countLock.lock(); requests += 1; countLock.unlock(); occupied.signal()
+        _ = releaseTransfers.wait(timeout:.now()+3); fixture.reply(200)
+    }
+}
+let queuedSharedClient = DeepSeekBalanceClient(store:store,configuration:configuration,timeout:4)
+for id in [deepseek.id,"claude|second"] {
+    queuedSharedClient.fetch(connectionID:id) { result in check((try? result.get()) == balance,"occupied worker query succeeds"); tripleDone.signal() }
+}
+check(occupied.wait(timeout:.now()+3) == .success && occupied.wait(timeout:.now()+3) == .success,"two distinct wallets occupy both transfer workers")
+queuedSharedClient.fetch(connectionID:"codex|codex-ds") { result in check((try? result.get()) == balance,"queued shared wallet callback succeeds"); tripleDone.signal() }
+Thread.sleep(forTimeInterval:0.2)
+for _ in 0..<3 { releaseTransfers.signal() }
+for _ in 0..<3 { check(tripleDone.wait(timeout:.now()+5) == .success,"all queued wallet callbacks complete") }
+check(requests == 2,"shared wallet joins active transfer even when both workers are occupied")
+queuedSharedClient.shutdown()

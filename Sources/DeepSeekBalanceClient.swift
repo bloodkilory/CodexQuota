@@ -18,6 +18,7 @@ final class DeepSeekBalanceClient {
     private let configuration: URLSessionConfiguration
     private let timeout: TimeInterval
     private let operations = OperationQueue()
+    private let resolutionQueue = DispatchQueue(label:"local.quotanest.deepseek.resolve")
     private let lock = NSLock()
     private var stopped = false
     private var sessions: [UUID:URLSession] = [:]
@@ -38,7 +39,7 @@ final class DeepSeekBalanceClient {
     fileprivate func detach(_ id: UUID) { lock.lock(); sessions.removeValue(forKey:id); lock.unlock() }
     func fetch(connectionID: String, onSourceChange: @escaping () -> Void = {}, completion: @escaping (Result<DeepSeekBalance,Error>) -> Void) {
         let deadline = ProcessInfo.processInfo.systemUptime + timeout
-        operations.addOperation {
+        resolutionQueue.async {
             do {
                 guard !self.isStopped else { throw DeepSeekQueryError(message:"余额查询已停止") }
                 let credential = try self.store.credential(for:connectionID)
@@ -60,24 +61,27 @@ final class DeepSeekBalanceClient {
                     self.pending[key]?.append(listener); self.lock.unlock(); return
                 }
                 self.pending[key] = [listener]; self.lock.unlock()
-                let result = Result { try self.read(token:credential.token,deadline:deadline) }
-                self.lock.lock()
-                let listeners = self.pending.removeValue(forKey:key) ?? []
-                if case .failure(let error) = result, let retry = (error as? DeepSeekQueryError)?.retryAt { self.limited[key] = retry }
-                self.lock.unlock()
-                for listener in listeners {
-                    do {
-                        guard !self.isStopped else { throw DeepSeekQueryError(message:"余额查询已停止") }
-                        let current = try self.store.credential(for:listener.id)
-                        guard current.generation == listener.generation else { throw DeepSeekQueryError(message:"CC Switch 连接已变化；已丢弃旧余额，请刷新",sourceChanged:true) }
-                        listener.completion(result)
-                    } catch {
-                        listener.completion(.failure(DeepSeekQueryError(message:"CC Switch 来源已变化或不可读；已丢弃旧余额，请重新检查连接",sourceChanged:true)))
+                self.operations.addOperation {
+                    let result = Result { try self.read(token:credential.token,deadline:deadline) }
+                    self.lock.lock()
+                    let listeners = self.pending.removeValue(forKey:key) ?? []
+                    if case .failure(let error) = result, let retry = (error as? DeepSeekQueryError)?.retryAt { self.limited[key] = retry }
+                    self.lock.unlock()
+                    for listener in listeners {
+                        do {
+                            guard !self.isStopped else { throw DeepSeekQueryError(message:"余额查询已停止") }
+                            let current = try self.store.credential(for:listener.id)
+                            guard current.generation == listener.generation else { throw DeepSeekQueryError(message:"CC Switch 连接已变化；已丢弃旧余额，请刷新",sourceChanged:true) }
+                            listener.completion(result)
+                        } catch {
+                            let busy = (error as? ConnectedAccountError)?.isTransient == true
+                            listener.completion(.failure(DeepSeekQueryError(message:busy ? error.localizedDescription : "CC Switch 来源已变化或不可读；已丢弃旧余额，请重新检查连接",sourceChanged:!busy)))
+                        }
                     }
                 }
             } catch {
-                if error is ConnectedAccountError {
-                    completion(.failure(DeepSeekQueryError(message:error.localizedDescription,sourceChanged:true)))
+                if let sourceError = error as? ConnectedAccountError {
+                    completion(.failure(DeepSeekQueryError(message:error.localizedDescription,sourceChanged:!sourceError.isTransient)))
                 } else { completion(.failure(error)) }
             }
         }
