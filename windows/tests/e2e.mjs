@@ -11,7 +11,7 @@ const driver=spawn('msedgedriver',['--port=4444','--verbose',`--log-path=${path.
 let log='';driver.stdout.on('data',v=>log+=v);driver.stderr.on('data',v=>log+=v);
 let session;
 const profile=await mkdtemp(path.join(os.tmpdir(),'quotanest-webview-'));
-const app=spawn('powershell.exe',['-NoProfile','-File','scripts/native-tray.ps1','-Mode','Launch','-Exe',application],{env:{...process.env,WEBVIEW2_USER_DATA_FOLDER:profile,WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:'--remote-debugging-port=9222'},stdio:['ignore','pipe','pipe'],windowsHide:true});
+const app=spawn(application,['--demo'],{env:{...process.env,WEBVIEW2_USER_DATA_FOLDER:profile,WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS:'--remote-debugging-port=9222'},stdio:['ignore','pipe','pipe'],windowsHide:true});
 let appLog='';app.stdout.on('data',v=>appLog+=v);app.stderr.on('data',v=>appLog+=v);
 app.on('exit',code=>appLog+=`\nNative exit: ${code}`);
 async function request(method,route,body){const r=await fetch(`http://127.0.0.1:4444${route}`,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(45000)});const v=await r.json();if(!r.ok||v.value?.error)throw new Error(JSON.stringify(v));return v.value;}

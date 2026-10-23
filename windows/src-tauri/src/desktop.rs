@@ -541,7 +541,10 @@ pub fn run() {
                     let app=tray.app_handle();
                     match event {
                         TrayIconEvent::Click{button:MouseButton::Left,button_state:MouseButtonState::Up,..}=>controls(app),
-                        TrayIconEvent::Enter{rect,..}=>{
+                        TrayIconEvent::Enter{rect,..}|TrayIconEvent::Move{rect,..}=>{
+                            let state=app.state::<Backend>();
+                            if state.hover.lock().unwrap().anchor.is_some() || app.get_webview_window("main").is_some_and(|w|w.is_visible().unwrap_or(false)){return;}
+
                             let _=tray.set_tooltip(None::<&str>);
                             if let Some(window)=app.get_webview_window("hover") {
                                 let anchor=physical(rect,window.scale_factor().unwrap_or(1.));place(&window,anchor);
