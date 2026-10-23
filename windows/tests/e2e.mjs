@@ -6,7 +6,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 const resultDir=path.resolve('e2e-results');await mkdir(resultDir,{recursive:true});
 const application=process.env.QUOTANEST_TEST_EXE||path.resolve('src-tauri/target/release/QuotaNest.exe');
-const driver=spawn('tauri-driver',['--port','4444'],{stdio:['ignore','pipe','pipe']});
+const driver=spawn('msedgedriver',['--port=4444','--verbose',`--log-path=${path.join(resultDir,'webview-driver.log')}`],{stdio:['ignore','pipe','pipe']});
 let log='';driver.stdout.on('data',v=>log+=v);driver.stderr.on('data',v=>log+=v);
 let session;
 async function request(method,route,body){const r=await fetch(`http://127.0.0.1:4444${route}`,{method,headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(45000)});const v=await r.json();if(!r.ok||v.value?.error)throw new Error(JSON.stringify(v));return v.value;}
@@ -20,7 +20,8 @@ async function select(css,value){
 }
 async function screenshot(name){const png=await request('GET',`/session/${session}/screenshot`);await writeFile(path.join(resultDir,`${name}.png`),Buffer.from(png,'base64'));}
 try{
- const created=await wait(()=>request('POST','/session',{capabilities:{alwaysMatch:{'tauri:options':{application,args:['--demo']}}}}));session=created.sessionId;
+ await wait(()=>request('GET','/status'));
+ const created=await request('POST','/session',{capabilities:{alwaysMatch:{browserName:'webview2','ms:edgeOptions':{binary:application,args:['--demo']}}}});session=created.sessionId;
  await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/18.60/));
  await screenshot('windows-deepseek-en');
  await select('#source','codex');

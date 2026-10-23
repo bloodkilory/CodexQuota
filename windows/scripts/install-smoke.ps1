@@ -22,6 +22,16 @@ if ($process.ExitCode -ne 0) { throw 'Update installer failed' }
 if ((Get-FileHash $preferencesFile -Algorithm SHA256).Hash -ne $beforeHash) { throw 'Update changed saved preferences' }
 if ((Get-ItemPropertyValue -Path $runKey -Name QuotaNest) -ne $runValue) { throw 'Update lost launch-at-sign-in registration' }
 Write-Host 'PASS NSIS update preserves preferences and current-user autostart'
+# Verify ordinary native startup separately from WebDriver attachment.
+$evidence = Join-Path $root 'e2e-results'
+New-Item -ItemType Directory -Path $evidence -Force | Out-Null
+$app = Start-Process -FilePath $exe -ArgumentList '--demo' -PassThru -RedirectStandardOutput "$evidence/startup.stdout.log" -RedirectStandardError "$evidence/startup.stderr.log"
+Start-Sleep -Seconds 5
+$app.Refresh()
+if ($app.HasExited) { throw "Native app exited during startup: $($app.ExitCode)" }
+Stop-Process -Id $app.Id -Force
+$app.WaitForExit()
+Write-Host 'PASS installed native application starts independently'
 # Run the actual installed binary in fixture mode through WebView2.
 $env:QUOTANEST_TEST_EXE = $exe
 npm run e2e
