@@ -296,8 +296,14 @@ fn demo_tray_bounds(
         .ok_or_else(|| AppError::new("protocol"))?;
     let rect = physical(tray, hover.scale_factor().unwrap_or(1.));
     let card = window_rect(&hover).ok_or_else(|| AppError::new("protocol"))?;
+    let cursor = hover.cursor_position().ok();
+    let main_visible = app
+        .get_webview_window("main")
+        .is_some_and(|w| w.is_visible().unwrap_or(false));
+    let visible = hover.is_visible().unwrap_or(false);
+    let state = backend.hover.lock().unwrap();
     Ok(
-        serde_json::json!({"tray":{"x":rect.x,"y":rect.y,"w":rect.w,"h":rect.h},"card":{"x":card.x,"y":card.y,"w":card.w,"h":card.h},"visible":hover.is_visible().unwrap_or(false)}),
+        serde_json::json!({"cursor":cursor.map(|p| [p.x,p.y]),"mainVisible":main_visible,"controllerVisible":state.visible,"anchor":state.anchor.map(|a| [a.x,a.y,a.w,a.h]),"tray":{"x":rect.x,"y":rect.y,"w":rect.w,"h":rect.h},"card":{"x":card.x,"y":card.y,"w":card.w,"h":card.h},"visible":visible}),
     )
 }
 #[tauri::command]
@@ -539,11 +545,13 @@ pub fn run() {
                 .on_menu_event(move|app,event|match event.id.as_ref(){"open"=>controls(app),"refresh"=>start_poll(&menu_backend,app),"quit"=>app.exit(0),_=>{}})
                 .on_tray_icon_event(|tray,event|{
                     let app=tray.app_handle();
+                    if app.state::<Backend>().demo { eprintln!("native tray event: {event:?}"); }
                     match event {
                         TrayIconEvent::Click{button:MouseButton::Left,button_state:MouseButtonState::Up,..}=>controls(app),
                         TrayIconEvent::Enter{rect,..}|TrayIconEvent::Move{rect,..}=>{
                             let state=app.state::<Backend>();
-                            if state.hover.lock().unwrap().anchor.is_some() || app.get_webview_window("main").is_some_and(|w|w.is_visible().unwrap_or(false)){return;}
+                            let active=state.hover.lock().unwrap().anchor.is_some();
+                            if active || app.get_webview_window("main").is_some_and(|w|w.is_visible().unwrap_or(false)){return;}
 
                             let _=tray.set_tooltip(None::<&str>);
                             if let Some(window)=app.get_webview_window("hover") {

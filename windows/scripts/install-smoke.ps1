@@ -45,24 +45,8 @@ New-Item -Path $dataKey -Force | Out-Null
 try {
     New-ItemProperty -Path $argsKey -Name 'QuotaNest.exe' -Value '--remote-debugging-port=9222' -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $dataKey -Name 'QuotaNest.exe' -Value (Join-Path $env:RUNNER_TEMP 'QuotaNest WebDriver Profile') -PropertyType String -Force | Out-Null
-    # Interactive LIMITED token matches normal users and Explorer's tray callbacks.
-    $taskName = 'QuotaNest-E2E-' + [guid]::NewGuid().ToString('N')
-    $node = (Get-Command node.exe).Source
-    $driver = Split-Path (Get-Command msedgedriver.exe).Source
-    $arguments = '-NoProfile -File "' + "$PSScriptRoot/scheduled-e2e.ps1" + '" -App "' + $exe + '" -Node "' + $node + '" -Driver "' + $driver + '" -Root "' + $root + '"'
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments -WorkingDirectory $root
-    $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
-    try {
-        Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Force | Out-Null
-        Start-ScheduledTask -TaskName $taskName
-        $exitFile = Join-Path $root 'e2e-results/scheduled-exit.txt'
-        for ($i=0; $i -lt 180 -and -not (Test-Path $exitFile); $i++) { Start-Sleep -Seconds 1 }
-        if (Test-Path "$root/e2e-results/scheduled-e2e.log") { Get-Content "$root/e2e-results/scheduled-e2e.log" }
-        if (-not (Test-Path $exitFile) -or (Get-Content $exitFile -Raw).Trim() -ne '0') { throw 'Installed GUI smoke failed' }
-    } finally {
-        Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-        Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-    }
+    node tests/e2e.mjs
+    if ($LASTEXITCODE -ne 0) { throw 'Installed GUI smoke failed' }
 } finally {
     Remove-ItemProperty -Path $argsKey -Name 'QuotaNest.exe' -ErrorAction SilentlyContinue
     Remove-ItemProperty -Path $dataKey -Name 'QuotaNest.exe' -ErrorAction SilentlyContinue
