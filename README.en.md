@@ -98,3 +98,7 @@ Issues and pull requests are welcome. Include OS/app/CLI versions and redacted r
 The compact capsule uses provider marks instead of letter abbreviations. Its colored width tracks the remaining percentage over a translucent base. Wallet amounts have no percentage fill. A failed refresh preserves the last known reading with `!`. Updates follow real quota readings every 60 seconds. Codex transient service/connection failures get one reconnect and retry within a shared 30-second budget; authentication, permission and rate-limit errors do not retry immediately. Exhausted retries still show stale data explicitly.
 
 The 64-point capsule has a narrow period button after a vertical separator. Click `5h` / `1w` / `Q` (`额` in Chinese) to switch available cached hourly, weekly or billing quotas instantly. Each provider remembers its selection; hours are preferred initially. With only one valid period the switch is disabled. Click the left portion for details. The progress fill applies only to the left portion; the period button keeps its translucent base.
+
+## Windows beta
+
+An independent Windows 11 x64 beta preserves the native Mac app. It supports CC Switch / DeepSeek official API balances and native Codex subscription quotas. Windows Actions builds beta installers; Windows is not yet listed as a fully validated platform. See [Windows beta instructions](docs/windows/README.md).
