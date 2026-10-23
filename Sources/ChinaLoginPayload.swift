@@ -86,7 +86,8 @@ extension ChinaLoginPayload {
         guard let limits = payload["limits"] as? [[String: Any]] else { throw failure("ZCode 未提供套餐额度") }
         var five: QuotaWindow?, weekly: QuotaWindow?, monthly: QuotaWindow?
         for row in limits {
-            guard let type = row["type"] as? String, let percent = number(row["percentage"]), (0...100).contains(percent) else { continue }
+            guard let type = row["type"] as? String else { continue }
+            let percent = number(row["percentage"]).flatMap { (0...100).contains($0) ? $0 : nil }
             let unit = number(row["unit"]), count = number(row["number"])
             let reset = number(row["nextResetTime"]).flatMap { $0 > 0 ? $0 / 1000 : nil }
             if ["TOKENS_LIMIT", "CREDIT_LIMIT"].contains(type) {
@@ -99,7 +100,7 @@ extension ChinaLoginPayload {
         var buckets: [String: QuotaBucket] = [:]
         if five != nil || weekly != nil { buckets["zcode"] = QuotaBucket(limitId: "zcode", limitName: "GLM Coding Plan", planType: header(payload["level"]), primary: five, secondary: weekly, credits: nil) }
         if let monthly { buckets["zcode-tools"] = QuotaBucket(limitId: "zcode-tools", limitName: "GLM 工具调用", planType: nil, primary: monthly, secondary: nil, credits: nil, nameKey:"GLM 工具调用") }
-        guard !buckets.isEmpty else { throw failure("ZCode 未返回支持的额度窗口；请在官方客户端查看") }
+        guard buckets.values.contains(where:{ $0.remaining != nil }) else { throw failure("ZCode 未返回支持的额度窗口；请在官方客户端查看") }
         return QuotaSnapshot(rateLimits: nil, rateLimitsByLimitId: buckets)
     }
     private static func zcodeStartPlan(_ payload: [String:Any]) throws -> QuotaSnapshot {

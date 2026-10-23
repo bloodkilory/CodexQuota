@@ -136,3 +136,9 @@ print("ZCode Start Plan fixed GET, native headers and expiry semantics passed")
 
 let seasonal = try ChinaLoginPayload.zcode(startPlanFixture(planName:"Seasonal Demo Pass"))
 check(seasonal.buckets.allSatisfy { $0.displayName.hasPrefix("Seasonal Demo Pass · ") },"activity plan names distinguish model balances from the daily Start Plan")
+
+let paidUnknownTool = try ChinaLoginPayload.zcode(data(["code":200,"data":["limits":[["type":"TOKENS_LIMIT","unit":3,"number":5,"percentage":25],["type":"TIME_LIMIT","unit":5,"number":1,"percentage":NSNull()]]]]))
+check(paidUnknownTool.rateLimitsByLimitId?["zcode-tools"]?.primary != nil,"returned unknown paid ZCode tool quota remains selectable")
+var paidToolReading = ProviderReading(snapshot:paidUnknownTool); paidToolReading.modelID = "key:zcode-tools"
+check(paidToolReading.selectedModel != nil && paidToolReading.window(for:.zcode,period:.billing)?.remaining == nil,"unknown selected tool quota never borrows paid coding quota")
+rejects({ _ = try ChinaLoginPayload.zcode(data(["code":200,"data":["limits":[["type":"TIME_LIMIT","unit":5,"number":1,"percentage":NSNull()]]]])) },"all-unknown paid ZCode response retains query failure semantics")
