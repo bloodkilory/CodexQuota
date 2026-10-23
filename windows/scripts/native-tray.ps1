@@ -46,8 +46,10 @@ if($Mode -eq 'Prepare') {
  $rect=$icon.Current.BoundingRectangle
  @{x=$rect.X;y=$rect.Y;w=$rect.Width;h=$rect.Height;name=$icon.Current.Name} | ConvertTo-Json | Set-Content "$out/native-tray-rect.json" -Encoding utf8
 } elseif($Mode -eq 'Move' -or $Mode -eq 'Click') {
- [TrayPointer]::SetCursorPos([int]$X-1,[int]$Y) | Out-Null
- [TrayPointer]::mouse_event(1,1,0,0,[UIntPtr]::Zero)
+ $screen=[System.Windows.Forms.SystemInformation]::VirtualScreen
+ $px=[uint32][Math]::Round(($X-$screen.Left)*65535/($screen.Width-1))
+ $py=[uint32][Math]::Round(($Y-$screen.Top)*65535/($screen.Height-1))
+ [TrayPointer]::mouse_event(0xC001,$px,$py,0,[UIntPtr]::Zero)
  if($Mode -eq 'Click'){[TrayPointer]::mouse_event(2,0,0,0,[UIntPtr]::Zero);[TrayPointer]::mouse_event(4,0,0,0,[UIntPtr]::Zero)}
  Start-Sleep -Milliseconds 800
  $hit=[System.Windows.Automation.AutomationElement]::FromPoint([System.Windows.Point]::new($X,$Y))
