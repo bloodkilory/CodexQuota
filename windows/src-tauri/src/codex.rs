@@ -10,23 +10,12 @@ use tokio::{
     process::Command,
 };
 pub fn executable(home: &Path) -> Result<PathBuf, AppError> {
-    let mut directories = vec![home.join(".local/bin"), home.join(".cargo/bin")];
+    let mut directories =
+        std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()).collect::<Vec<_>>();
     if let Some(appdata) = std::env::var_os("APPDATA") {
-        directories.push(
-            PathBuf::from(appdata)
-                .join("npm/node_modules/@openai/codex/vendor/x86_64-pc-windows-msvc/codex"),
-        );
+        directories.push(PathBuf::from(appdata).join("npm"));
     }
-    directories.extend(std::env::split_paths(
-        &std::env::var_os("PATH").unwrap_or_default(),
-    ));
-    for directory in directories {
-        let path = directory.join(if cfg!(windows) { "codex.exe" } else { "codex" });
-        if path.is_file() {
-            return Ok(path);
-        }
-    }
-    Err(AppError::new("codex_missing"))
+    find_executable(home, &directories, cfg!(windows)).ok_or_else(|| AppError::new("codex_missing"))
 }
 async fn response<R: tokio::io::AsyncBufRead + Unpin>(
     reader: &mut R,
@@ -132,4 +121,34 @@ async fn rpc_frames_are_bounded_and_notification_not_used_as_result() {
         response(&mut reader, 2).await.unwrap_err().code,
         "response_too_large"
     );
+}
+
+pub fn find_executable(home: &Path, directories: &[PathBuf], windows: bool) -> Option<PathBuf> {
+    let name = if windows { "codex.exe" } else { "codex" };
+    let mut candidates = vec![
+        home.join(".local/bin").join(name),
+        home.join(".cargo/bin").join(name),
+    ];
+    for directory in directories {
+        candidates.push(directory.join(name));
+        if windows {
+            for base in [
+                "node_modules/@openai/codex-win32-x64/vendor",
+                "node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor",
+                "node_modules/@openai/codex/vendor",
+            ] {
+                candidates.push(
+                    directory
+                        .join(base)
+                        .join("x86_64-pc-windows-msvc/bin/codex.exe"),
+                );
+            }
+            candidates.push(
+                directory.join(
+                    "node_modules/@openai/codex/vendor/x86_64-pc-windows-msvc/codex/codex.exe",
+                ),
+            );
+        }
+    }
+    candidates.into_iter().find(|p| p.is_file())
 }

@@ -6,6 +6,22 @@ $process = Start-Process -FilePath $installer -ArgumentList "/S /D=$target" -Wai
 if ($process.ExitCode -ne 0) { throw "Installer exited $($process.ExitCode)" }
 $exe = Join-Path $target 'QuotaNest.exe'
 if (-not (Test-Path $exe)) { throw 'Installed app missing' }
+# Exercise NSIS update mode with real per-user preferences and Run registration.
+$preferencesDir = Join-Path $env:APPDATA 'app.quotanest.windows'
+New-Item -ItemType Directory -Path $preferencesDir -Force | Out-Null
+$preferencesFile = Join-Path $preferencesDir 'preferences.json'
+$preferences = @{source='codex'; language='zh'; directory=(Join-Path $env:USERPROFILE '.cc-switch'); autostart=$true} | ConvertTo-Json
+[IO.File]::WriteAllText($preferencesFile, $preferences, [Text.UTF8Encoding]::new($false))
+$beforeHash = (Get-FileHash $preferencesFile -Algorithm SHA256).Hash
+$runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+New-Item -Path $runKey -Force | Out-Null
+$runValue = '"' + $exe + '" --background'
+New-ItemProperty -Path $runKey -Name QuotaNest -Value $runValue -PropertyType String -Force | Out-Null
+$process = Start-Process -FilePath $installer -ArgumentList "/S /UPDATE /D=$target" -Wait -PassThru
+if ($process.ExitCode -ne 0) { throw 'Update installer failed' }
+if ((Get-FileHash $preferencesFile -Algorithm SHA256).Hash -ne $beforeHash) { throw 'Update changed saved preferences' }
+if ((Get-ItemPropertyValue -Path $runKey -Name QuotaNest) -ne $runValue) { throw 'Update lost launch-at-sign-in registration' }
+Write-Host 'PASS NSIS update preserves preferences and current-user autostart'
 # Run the actual installed binary in fixture mode through WebView2.
 $env:QUOTANEST_TEST_EXE = $exe
 npm run e2e

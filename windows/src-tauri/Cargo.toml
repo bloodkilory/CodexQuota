@@ -14,7 +14,7 @@ required-features = ["desktop"]
 
 [features]
 default = ["desktop"]
-desktop = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-autostart", "dep:tauri-plugin-single-instance"]
+desktop = ["dep:tauri", "dep:tauri-build", "dep:auto-launch", "dep:tauri-plugin-single-instance"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -29,7 +29,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "proce
 semver = "1"
 httpdate = "1"
 tauri = { version = "2", optional = true, features = ["tray-icon", "image-png"] }
-tauri-plugin-autostart = { version = "2", optional = true }
+auto-launch = { version = "0.6", optional = true }
 tauri-plugin-single-instance = { version = "2", optional = true }
 
 [build-dependencies]

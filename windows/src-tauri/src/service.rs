@@ -92,15 +92,7 @@ impl Service {
         Ok(())
     }
     pub fn begin(&mut self) -> Option<Request> {
-        if self.state.reading.refreshing
-            || self
-                .state
-                .reading
-                .error
-                .as_ref()
-                .and_then(|e| e.retry_at)
-                .is_some_and(|t| t > now())
-        {
+        if self.state.reading.refreshing {
             return None;
         }
         self.state.reading.refreshing = true;
@@ -129,6 +121,19 @@ impl Service {
         self.state.reading.data = None;
         self.state.reading.updated = None;
         self.credential_generation = None;
+        self.state.reading.error = None;
+    }
+    pub fn validate_credential(&mut self, generation: &str) -> Option<AppError> {
+        if self.credential_generation.as_deref() != Some(generation) {
+            self.credentials_changed();
+            self.credential_generation = Some(generation.into());
+        }
+        self.state
+            .reading
+            .error
+            .as_ref()
+            .filter(|e| e.retry_at.is_some_and(|t| t > now()))
+            .cloned()
     }
     pub fn current(&self, r: &Request) -> bool {
         self.epoch == r.epoch && self.state.preferences.source == r.source

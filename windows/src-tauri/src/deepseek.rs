@@ -64,12 +64,16 @@ pub fn status_error(status: u16, retry_after: Option<&str>) -> AppError {
     }
 }
 pub async fn fetch(credential: &Credential) -> Result<Vec<Wallet>, AppError> {
+    fetch_url(credential, "https://api.deepseek.com/user/balance").await
+}
+
+async fn fetch_url(credential: &Credential, endpoint: &str) -> Result<Vec<Wallet>, AppError> {
     let client = client()?;
     tokio::time::timeout(Duration::from_secs(30), async {
         for attempt in 0..2 {
             let result = async {
                 let response = client
-                    .get("https://api.deepseek.com/user/balance")
+                    .get(endpoint)
                     .bearer_auth(&credential.token)
                     .send()
                     .await
@@ -116,4 +120,73 @@ fn retry_after_does_not_turn_auth_failure_into_retry() {
                 .as_secs()
         )
     );
+}
+
+#[cfg(test)]
+mod transport_tests {
+    use super::*;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::TcpListener,
+    };
+    async fn server(replies: Vec<String>) -> (String, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}/user/balance", listener.local_addr().unwrap());
+        let task = tokio::spawn(async move {
+            for reply in replies {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut request = vec![0; 16384];
+                let n = socket.read(&mut request).await.unwrap();
+                assert!(
+                    String::from_utf8_lossy(&request[..n]).contains("Bearer synthetic-test-token")
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+            }
+        });
+        (url, task)
+    }
+    fn reply(status: &str, body: &str, headers: &str) -> String {
+        format!(
+            "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n{headers}\r\n{body}",
+            body.len()
+        )
+    }
+    fn credential() -> Credential {
+        Credential {
+            token: "synthetic-test-token".into(),
+            generation: "test".into(),
+        }
+    }
+    #[tokio::test]
+    async fn transient_server_failure_recovers_in_one_retry() {
+        let body = r#"{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"18.60","granted_balance":"3.60","topped_up_balance":"15.00"}]}"#;
+        let (url, task) = server(vec![
+            reply("503 Unavailable", "", ""),
+            reply("200 OK", body, ""),
+        ])
+        .await;
+        assert_eq!(
+            fetch_url(&credential(), &url).await.unwrap()[0].total,
+            "18.60"
+        );
+        task.await.unwrap();
+    }
+    #[tokio::test]
+    async fn auth_failures_and_redirects_do_not_retry_or_follow() {
+        for (response, code) in [
+            (reply("401 Unauthorized", "", ""), "unauthorized"),
+            (
+                reply("302 Found", "", "Location: http://127.0.0.1:1/leak\r\n"),
+                "redirect_refused",
+            ),
+            (
+                reply("429 Limited", "", "Retry-After: 120\r\n"),
+                "rate_limited",
+            ),
+        ] {
+            let (url, task) = server(vec![response]).await;
+            assert_eq!(fetch_url(&credential(), &url).await.unwrap_err().code, code);
+            task.await.unwrap();
+        }
+    }
 }

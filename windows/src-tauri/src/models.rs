@@ -87,12 +87,7 @@ pub fn parse_balance(root: &Value) -> Result<Vec<Wallet>, AppError> {
 pub fn parse_codex(root: &Value) -> Result<Quota, AppError> {
     let map = root["rateLimitsByLimitId"].as_object();
     let bucket = map
-        .and_then(|m| {
-            m.get("codex").or_else(|| {
-                m.values()
-                    .find(|v| v["primary"].is_object() || v["secondary"].is_object())
-            })
-        })
+        .and_then(|m| m.get("codex"))
         .or_else(|| root.get("rateLimits"))
         .filter(|v| v.is_object())
         .ok_or_else(|| AppError::new("invalid_quota"))?;

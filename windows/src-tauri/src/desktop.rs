@@ -14,7 +14,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager, WebviewWindow, WindowEvent,
 };
-use tauri_plugin_autostart::ManagerExt;
+
 #[derive(Clone)]
 struct Backend {
     service: Arc<Mutex<Service>>,
@@ -64,21 +64,18 @@ async fn poll(backend: Backend, app: tauri::AppHandle) {
         let directory = PathBuf::from(&request.directory);
         match cc_switch::resolve(&directory, id) {
             Ok(credential) => {
-                {
+                let limited = {
                     let mut service = backend.service.lock().unwrap();
                     if !service.current(&request) {
                         return;
                     }
-                    if service
-                        .credential_generation
-                        .as_ref()
-                        .is_some_and(|g| g != &credential.generation)
-                    {
-                        service.credentials_changed();
-                    }
-                    service.credential_generation = Some(credential.generation.clone());
-                }
-                let value = deepseek::fetch(&credential).await;
+                    service.validate_credential(&credential.generation)
+                };
+                let value = if let Some(error) = limited {
+                    Err(error)
+                } else {
+                    deepseek::fetch(&credential).await
+                };
                 match cc_switch::resolve(&directory, id) {
                     Ok(current) if current.generation == credential.generation => {
                         value.map(Data::Balance)
@@ -201,7 +198,7 @@ fn discover(directory: String, backend: tauri::State<'_, Backend>) -> Result<Sna
 fn save_preferences(
     preferences: Preferences,
     backend: tauri::State<'_, Backend>,
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
 ) -> Result<Snapshot, AppError> {
     if !["system", "en", "zh"].contains(&preferences.language.as_str())
         || preferences.directory.len() > 32768
@@ -214,7 +211,7 @@ fn save_preferences(
     next.autostart = preferences.autostart;
     // Directory changes are applied only through explicit discovery; not by a language save.
     if !backend.demo {
-        let autolaunch = app.autolaunch();
+        let autolaunch = autolaunch()?;
         let result = if next.autostart {
             autolaunch.enable()
         } else {
@@ -273,11 +270,12 @@ async fn install_update(
         .ok_or_else(|| AppError::new("invalid_update"))?;
     backend.service.lock().unwrap().state.update_status = "downloading".into();
     let directory = backend.preferences.parent().unwrap().join("Updates");
-    let result = async {
+    let result: Result<(), AppError> = async {
         let installer = updates::stage(&update, &directory).await?;
         #[cfg(windows)]
         {
             std::process::Command::new(installer)
+                .arg("/UPDATE")
                 .spawn()
                 .map_err(|_| AppError::new("update_download"))?;
             app.exit(0);
@@ -305,17 +303,30 @@ fn show(window: &WebviewWindow) {
     let _ = window.unminimize();
     let _ = window.set_focus();
 }
+fn autolaunch() -> Result<auto_launch::AutoLaunch, AppError> {
+    let path = std::env::current_exe().map_err(|_| AppError::new("autostart_failed"))?;
+    let mut builder = auto_launch::AutoLaunchBuilder::new();
+    builder
+        .set_app_name("QuotaNest")
+        .set_app_path(&path.to_string_lossy())
+        .set_args(&["--background"]);
+    #[cfg(windows)]
+    builder.set_windows_enable_mode(auto_launch::WindowsEnableMode::CurrentUser);
+    builder
+        .build()
+        .map_err(|_| AppError::new("autostart_failed"))
+}
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app,_,_|{if let Some(window)=app.get_webview_window("main"){show(&window);}}))
-        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent,Some(vec!["--background"])))
+
         .invoke_handler(tauri::generate_handler![snapshot,refresh,select_source,discover,save_preferences,check_update,install_update,quit])
         .setup(|app|{
             let home=std::env::var_os(if cfg!(windows){"USERPROFILE"}else{"HOME"}).map(PathBuf::from).ok_or("home missing")?;
             let preferences=app.path().app_config_dir()?.join("preferences.json");
             let demo=std::env::args().any(|a|a=="--demo");
             let mut prefs=if demo{Preferences::defaults(&home)}else{std::fs::read(&preferences).ok().and_then(|b|serde_json::from_slice::<Preferences>(&b).ok()).unwrap_or_else(||Preferences::defaults(&home))};
-            if !demo {prefs.autostart=app.autolaunch().is_enabled().unwrap_or(prefs.autostart);}
+            if !demo {prefs.autostart=autolaunch()?.is_enabled().unwrap_or(prefs.autostart);}
             let mut service=Service::new(prefs);
             if demo {
                 service.state.connections=vec![cc_switch::Connection{id:"claude|demo".into(),name:"DeepSeek".into(),harness:"claude".into(),origin:"https://api.deepseek.com".into(),supported:true}];

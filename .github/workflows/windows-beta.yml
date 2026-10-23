@@ -31,6 +31,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: windows/src-tauri
+          cache-on-failure: true
       - name: Install locked frontend dependencies
         run: npm ci --ignore-scripts
       - name: Frontend tests and typecheck
@@ -51,7 +52,6 @@ jobs:
         run: |
           cargo install tauri-driver --locked
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $edge = (Get-Item '${{ runner.tool_cache }}' -ErrorAction SilentlyContinue)
           $edgeExe = "${env:ProgramFiles(x86)}/Microsoft/Edge/Application/msedge.exe"
           $version = (Get-Item $edgeExe).VersionInfo.ProductVersion
           $url = "https://msedgedriver.microsoft.com/$version/edgedriver_win64.zip"

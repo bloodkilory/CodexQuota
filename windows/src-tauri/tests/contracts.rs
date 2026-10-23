@@ -135,3 +135,67 @@ fn a_transient_error_retains_values_but_changed_credentials_clear_them() {
     service.credentials_changed();
     assert!(service.snapshot().reading.data.is_none());
 }
+
+#[test]
+fn executable_discovery_handles_current_npm_packages_and_never_runs_cmd_shims() {
+    let dir = tempfile::tempdir().unwrap();
+    let prefix = dir.path().join("custom npm prefix with spaces");
+    fs::create_dir_all(&prefix).unwrap();
+    fs::write(prefix.join("codex.cmd"), "must never run").unwrap();
+    assert!(quotanest_windows::codex::find_executable(
+        dir.path(),
+        std::slice::from_ref(&prefix),
+        true
+    )
+    .is_none());
+    for layout in ["node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe","node_modules/@openai/codex/node_modules/@openai/codex-win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe","node_modules/@openai/codex/vendor/x86_64-pc-windows-msvc/bin/codex.exe"] {
+        let file=prefix.join(layout);fs::create_dir_all(file.parent().unwrap()).unwrap();fs::write(&file,"synthetic native binary").unwrap();
+        assert_eq!(quotanest_windows::codex::find_executable(dir.path(),std::slice::from_ref(&prefix),true),Some(file.clone()));fs::remove_file(file).unwrap();
+    }
+}
+
+#[test]
+fn legacy_main_quota_wins_over_other_model_limits() {
+    let reading=models::parse_codex(&json!({"rateLimits":{"primary":{"usedPercent":10}},"rateLimitsByLimitId":{"codex-spark":{"primary":{"usedPercent":99}}}})).unwrap();
+    assert_eq!(reading.windows[0].remaining, Some(90.0));
+    assert!(models::parse_codex(
+        &json!({"rateLimitsByLimitId":{"other-model":{"primary":{"usedPercent":99}}}})
+    )
+    .is_err());
+}
+#[test]
+fn changed_credentials_clear_previous_rate_limit_and_allow_local_validation() {
+    use quotanest_windows::service::{Preferences, Service};
+    let (dir, _) = store();
+    let mut service = Service::new(Preferences::defaults(dir.path()));
+    let request = service.begin().unwrap();
+    service.finish(
+        request,
+        Err(models::AppError {
+            code: "rate_limited".into(),
+            retry_at: Some(models::now() + 3600),
+        }),
+    );
+    service.credentials_changed();
+    assert!(service.snapshot().reading.error.is_none());
+    assert!(service.begin().is_some());
+}
+#[test]
+fn unchanged_credential_keeps_cooldown_but_new_credential_does_not() {
+    use quotanest_windows::service::{Preferences, Service};
+    let (dir, _) = store();
+    let mut service = Service::new(Preferences::defaults(dir.path()));
+    assert!(service.validate_credential("old-generation").is_none());
+    let request = service.begin().unwrap();
+    service.finish(
+        request,
+        Err(models::AppError {
+            code: "rate_limited".into(),
+            retry_at: Some(models::now() + 3600),
+        }),
+    );
+    assert!(service.begin().is_some()); // local validation must still run during cooldown
+    assert!(service.validate_credential("old-generation").is_some());
+    assert!(service.validate_credential("new-generation").is_none());
+    assert!(service.snapshot().reading.error.is_none());
+}
