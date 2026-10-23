@@ -1,13 +1,14 @@
 export interface AppError { code:string; retryAt:number|null }
 export interface Wallet { currency:string;total:string;granted:string;toppedUp:string }
-export interface Quota { plan:string|null;windows:{remaining:number|null;minutes:number|null;resetsAt:number|null}[] }
+export interface Quota { plan:string|null;windows:{label?:string|null;remaining:number|null;minutes:number|null;resetsAt:number|null}[] }
 export type Data = {kind:'balance';value:Wallet[]} | {kind:'quota';value:Quota};
 export interface Reading {data:Data|null;updated:number|null;error:AppError|null;refreshing:boolean}
 export interface Connection {id:string;name:string;harness:string;origin:string;supported:boolean}
-export interface Preferences {source:string;language:string;directory:string;autostart:boolean}
+export interface Preferences {source:string;language:string;directory:string;autostart:boolean;display?:Record<string,string>}
 export interface Snapshot {preferences:Preferences;connections:Connection[];reading:Reading;discoveryError:AppError|null;update:{version:string;name:string;url:string;checksumUrl:string}|null;updateStatus:string}
 const copy:Record<string,[string,string]>={
  title:['QuotaNest','余度 QuotaNest'], beta:['Windows beta','Windows 内测版'], source:['Display source','显示来源'],
+ claude:['Claude · Subscription quota','Claude · 套餐余量'],claudeGroup:['Claude subscription','Claude 总额度'],sonnet:['Sonnet weekly','Sonnet 周额度'],opus:['Opus weekly','Opus 周额度'],trayDisplay:['Tray reading','托盘读数'],plan:['Plan','套餐'],
  codex:['Codex · Subscription quota','Codex · 套餐余量'], api:['API balance','API 余额'], configuration:['Saved configuration, not observed session routing','已保存配置，不代表当前会话实际路由'],
  available:['Available balance','可用余额'],granted:['Granted','赠送余额'],paid:['Topped up','充值余额'],
  refresh:['Refresh now','立即刷新'],refreshing:['Refreshing…','正在查询…'],updated:['Updated','更新于'],never:['No successful reading yet','尚无成功查询'],stale:['Outdated reading','读数已过期'],
@@ -19,7 +20,8 @@ const copy:Record<string,[string,string]>={
  checking:['Checking GitHub Releases…','正在检查 GitHub 正式版…'],current:['No newer Windows release available','暂无更新的 Windows 正式版'],availableUpdate:['A Windows update is available','有新的 Windows 正式版'],
  downloading:['Downloading and verifying SHA-256…','正在下载并校验 SHA-256…'],quit:['Quit QuotaNest','退出余度'],
  demo:['Preview · demo data · no account access','预览 · 演示数据 · 不读取账号'],window:['Quota window','额度窗口'],remaining:['remaining','剩余'],reset:['Resets','重置于'],
- privacy:['Reads selected local configuration. Keys stay in the backend.','只读取所选本机配置，凭据不进入界面。'],scope:['Beta: native Windows Codex + DeepSeek. WSL and other providers are not supported yet.','内测范围：原生 Windows Codex 与 DeepSeek；暂不支持 WSL 和其他平台。'],
+ privacy:['Reads selected local configuration. Keys stay in the backend.','只读取所选本机配置，凭据不进入界面。'],scope:['Beta: native Windows Codex, Claude subscription and DeepSeek API. WSL and other official providers are not supported yet.','内测范围：原生 Windows Codex、Claude 官方套餐与 DeepSeek API；暂不支持 WSL 和其他官方平台。'],
+ claude_login_missing:['No Claude subscription login. Run claude auth login in official native Claude Code.','未找到 Claude 订阅登录，请在原生官方 Claude Code 运行 claude auth login。'],claude_login_expired:['Claude login expired. Open Claude Code and sign in again, then refresh.','Claude 登录已过期，请回到官方 Claude Code 更新登录后刷新。'],claude_scope_missing:['Claude login lacks user:profile access. Sign in again with a subscription account.','Claude 登录缺少 user:profile 权限，请用订阅账号重新登录。'],claude_login_unreadable:['Cannot read Claude login. Check the official configuration file and permissions.','无法读取 Claude 登录，请检查官方配置文件及读取权限。'],claude_config_invalid:['CLAUDE_CONFIG_DIR must be an absolute directory path.','CLAUDE_CONFIG_DIR 必须是绝对目录路径。'],
  network:['Connection failed. Check your proxy/network, then refresh.','连接失败，请检查代理或网络后刷新。'],server:['Service temporarily unavailable.','服务暂不可用。'],unauthorized:['Sign-in expired. Sign in again in the original tool.','登录或凭据已失效，请在原工具重新登录或配置。'],
  forbidden:['This account cannot read the requested quota/balance.','当前账号无权读取该额度或余额。'],rate_limited:['Rate limited. Waiting until the service allows another check.','查询受限，等待服务允许后再检查。'],
  source_missing:['CC Switch database not found. Choose its data directory.','未找到 CC Switch 数据库，请选择其数据目录。'],source_busy:['CC Switch is updating. Keeping the last reading.','CC Switch 正在更新，保留上次读数。'],
@@ -33,12 +35,25 @@ const copy:Record<string,[string,string]>={
 };
 export function isChinese(s:Snapshot):boolean {return s.preferences.language==='zh' || (s.preferences.language==='system' && (typeof navigator!=='undefined' && navigator.language.startsWith('zh')));}
 export function text(s:Snapshot,key:string):string {return copy[key]?.[isChinese(s)?1:0]??copy.http_error[isChinese(s)?1:0];}
+export function displayChoices(s:Snapshot):{value:string;label:string}[] {
+ const data=s.reading.data;
+ if(data?.kind==='balance')return data.value.map(w=>({value:w.currency,label:w.currency}));
+ if(data?.kind==='quota')return [...new Set(data.value.windows.flatMap(w=>w.minutes==null?[]:[w.minutes]))].map(m=>({value:String(m),label:periodLabel(m)}));
+ return [];
+}
+export function periodLabel(minutes:number):string {return minutes>=1440?`${minutes/1440}d`:minutes>=60?`${minutes/60}h`:`${minutes}m`;}
 export function present(s:Snapshot) {
  const c=s.connections.find(c=>s.preferences.source===`api:${c.id}`);
- const data=s.reading.data;
- const amount=data?.kind==='balance' ? `${data.value[0]?.currency??''} ${data.value[0]?.total??'—'}` : data?.kind==='quota' && data.value.windows[0]?.remaining!=null ? `${data.value.windows[0].remaining.toFixed(0)}%` : '—';
- return {name:s.preferences.source==='codex'?'Codex':c?.name||'DeepSeek',amount,stale:!!s.reading.error && !!data,updated:s.reading.updated};
+ const data=s.reading.data;const options=displayChoices(s);const saved=s.preferences.display?.[s.preferences.source];
+ const selected=options.find(o=>o.value===saved)?.value||options[0]?.value;
+ let amount='—';
+ if(data?.kind==='balance'){const wallet=data.value.find(w=>w.currency===selected)||data.value[0];if(wallet)amount=`${wallet.currency} ${wallet.total}`;}
+ if(data?.kind==='quota'){
+  const values=data.value.windows.filter(w=>selected==null||String(w.minutes)===selected).flatMap(w=>w.remaining==null?[]:[w.remaining]);
+  if(values.length)amount=`${Math.min(...values).toFixed(0)}%`;
+ }
+ return {name:s.preferences.source==='codex'?'Codex':s.preferences.source==='claude'?'Claude':c?.name||'DeepSeek',amount,selected,stale:!!s.reading.error && !!data,updated:s.reading.updated};
 }
 export function demoSnapshot(source='api:claude|demo'):Snapshot {
- return {preferences:{source,language:'en',directory:'C:\\Users\\Demo\\.cc-switch',autostart:false},connections:[{id:'claude|demo',name:'DeepSeek',harness:'claude',origin:'https://api.deepseek.com',supported:true}],reading:{data:source==='codex'?{kind:'quota',value:{plan:'Plus',windows:[{remaining:76,minutes:300,resetsAt:1792749600},{remaining:62,minutes:10080,resetsAt:1793318400}]}}:{kind:'balance',value:[{currency:'CNY',total:'18.60',granted:'3.60',toppedUp:'15.00'}]},updated:1792731600,error:null,refreshing:false},discoveryError:null,update:null,updateStatus:'idle'};
+ return {preferences:{source,language:'en',directory:'C:\\Users\\Demo\\.cc-switch',autostart:false},connections:[{id:'claude|demo',name:'DeepSeek',harness:'claude',origin:'https://api.deepseek.com',supported:true}],reading:{data:source==='claude'?{kind:'quota',value:{plan:'Max',windows:[{label:'claude',remaining:82,minutes:300,resetsAt:1792792800},{label:'claude',remaining:61,minutes:10080,resetsAt:null},{label:'sonnet',remaining:93,minutes:10080,resetsAt:null},{label:'opus',remaining:39,minutes:10080,resetsAt:null}]}}:source==='codex'?{kind:'quota',value:{plan:'Plus',windows:[{remaining:76,minutes:300,resetsAt:1792749600},{remaining:62,minutes:10080,resetsAt:1793318400}]}}:{kind:'balance',value:[{currency:'CNY',total:'18.60',granted:'3.60',toppedUp:'15.00'},{currency:'USD',total:'3.20',granted:'0.20',toppedUp:'3.00'}]},updated:1792731600,error:null,refreshing:false},discoveryError:null,update:null,updateStatus:'idle'};
 }

@@ -3,7 +3,7 @@ use crate::{
     models::{now, AppError, Quota, Wallet},
 };
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Preferences {
@@ -11,6 +11,8 @@ pub struct Preferences {
     pub language: String,
     pub directory: String,
     pub autostart: bool,
+    #[serde(default)]
+    pub display: BTreeMap<String, String>,
 }
 impl Preferences {
     pub fn defaults(home: &Path) -> Self {
@@ -19,6 +21,7 @@ impl Preferences {
             language: "system".into(),
             directory: home.join(".cc-switch").to_string_lossy().into(),
             autostart: false,
+            display: BTreeMap::new(),
         }
     }
 }
@@ -79,6 +82,7 @@ impl Service {
     }
     pub fn select(&mut self, source: &str) -> Result<(), AppError> {
         if source != "codex"
+            && source != "claude"
             && !self
                 .state
                 .connections
@@ -93,6 +97,62 @@ impl Service {
         self.credential_generation = None;
         self.cooldown = None;
         Ok(())
+    }
+    pub fn set_directory(&mut self, directory: String) {
+        if self.state.preferences.directory != directory
+            && self.state.preferences.source.starts_with("api:")
+        {
+            self.epoch += 1;
+            self.state.reading = Reading::default();
+            self.credential_generation = None;
+            self.cooldown = None;
+        }
+        self.state.preferences.directory = directory;
+    }
+    pub fn select_display(&mut self, value: &str) -> Result<(), AppError> {
+        let valid = match &self.state.reading.data {
+            Some(Data::Quota(q)) => q
+                .windows
+                .iter()
+                .any(|w| w.minutes.is_some_and(|m| m.to_string() == value)),
+            Some(Data::Balance(wallets)) => wallets.iter().any(|w| w.currency == value),
+            None => false,
+        };
+        if !valid {
+            return Err(AppError::new("invalid_quota"));
+        }
+        self.state
+            .preferences
+            .display
+            .insert(self.state.preferences.source.clone(), value.into());
+        Ok(())
+    }
+    pub fn display_amount(&self) -> String {
+        let choice = self
+            .state
+            .preferences
+            .display
+            .get(&self.state.preferences.source);
+        match &self.state.reading.data {
+            Some(Data::Quota(q)) => {
+                let minutes = choice
+                    .and_then(|s| s.parse::<u64>().ok())
+                    .filter(|m| q.windows.iter().any(|w| w.minutes == Some(*m)))
+                    .or_else(|| q.windows.iter().find_map(|w| w.minutes));
+                q.windows
+                    .iter()
+                    .filter(|w| w.minutes == minutes)
+                    .filter_map(|w| w.remaining)
+                    .reduce(f64::min)
+                    .map(|n| format!("{n:.0}%"))
+            }
+            Some(Data::Balance(wallets)) => choice
+                .and_then(|c| wallets.iter().find(|w| &w.currency == c))
+                .or_else(|| wallets.first())
+                .map(|w| format!("{} {}", w.currency, w.total)),
+            None => None,
+        }
+        .unwrap_or_else(|| "—".into())
     }
     pub fn begin(&mut self) -> Option<Request> {
         if self.state.reading.refreshing {

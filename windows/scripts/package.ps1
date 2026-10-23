@@ -10,4 +10,5 @@ Copy-Item $bundle[0].FullName "$out/$name"
 $digest = (Get-FileHash "$out/$name" -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText("$out/SHA256SUMS.txt", "$digest  $name`n", [Text.UTF8Encoding]::new($false))
 Copy-Item "$PSScriptRoot/../../docs/windows/README.md" "$out/README.md"
-Write-Host "Packaged $name with SHA-256"
+Copy-Item "$PSScriptRoot/../../docs/windows/feature-parity.md" "$out/feature-parity.md"
+Write-Host "Packaged $name with SHA-256: $digest"

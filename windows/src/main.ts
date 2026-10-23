@@ -1,5 +1,5 @@
 import {invoke} from '@tauri-apps/api/core';
-import {demoSnapshot,isChinese,present,text,type Snapshot} from './presentation';
+import {demoSnapshot,isChinese,present,text,displayChoices,periodLabel,type Snapshot} from './presentation';
 import './style.css';
 const native=!!(window as unknown as {__TAURI_INTERNALS__?:unknown}).__TAURI_INTERNALS__;
 let snapshot=demoSnapshot();let settings=false;let pending=false;let localError='';let preferencesEditing=false;
@@ -44,18 +44,28 @@ function render(){
   const quit=button('quit',async()=>{if(native)await command('quit');});quit.id='quit';shell.append(form,update,element('p',label('scope'),'muted'),quit);
  }else{
   const sourceLabel=element('label',label('source'));sourceLabel.htmlFor='source';const select=element('select');select.id='source';
-  const codex=element('option',label('codex'));codex.value='codex';select.append(codex);
+  const codex=element('option',label('codex'));codex.value='codex';select.append(codex);const claude=element('option',label('claude'));claude.value='claude';select.append(claude);
   for(const c of snapshot.connections){const option=element('option',`${c.name||'DeepSeek'} · ${c.harness==='claude'?'Claude Code':'Codex'}${c.supported?'':` · ${label('unsupported')}`}`);option.value=`api:${c.id}`;option.disabled=!c.supported;select.append(option);}
   if(!Array.from(select.options).some(o=>o.value===snapshot.preferences.source)){const option=element('option',label('source_missing'));option.value=snapshot.preferences.source;select.append(option);}
   select.value=snapshot.preferences.source;select.onchange=()=>void run(()=>selectSource(select.value));shell.append(sourceLabel,select);
-  if(snapshot.preferences.source!=='codex')shell.append(element('p',label('configuration'),'muted'));
+  if(snapshot.preferences.source.startsWith('api:'))shell.append(element('p',label('configuration'),'muted'));
   const view=present(snapshot);const card=element('section',undefined,view.stale?'card stale':'card');card.setAttribute('aria-live','polite');
-  card.append(element('span',snapshot.preferences.source==='codex'?label('codex'):`DeepSeek · ${label('api')}`,'eyebrow'),element('h2',view.name),element('div',view.amount,'amount'));
+  card.append(element('span',snapshot.preferences.source==='codex'?label('codex'):snapshot.preferences.source==='claude'?label('claude'):`DeepSeek · ${label('api')}`,'eyebrow'),element('h2',view.name),element('div',view.amount,'amount'));
+  const choices=displayChoices(snapshot);
+  if(choices.length>1){
+   const displayLabel=element('label',label('trayDisplay'));displayLabel.htmlFor='display';const display=element('select');display.id='display';
+   for(const choice of choices){const option=element('option',choice.label);option.value=choice.value;display.append(option);}
+   display.value=view.selected||choices[0].value;
+   display.onchange=()=>void run(async()=>{if(native){snapshot=await command<Snapshot>('select_display',{value:display.value});}else{snapshot.preferences.display={...snapshot.preferences.display,[snapshot.preferences.source]:display.value};}});
+   card.append(displayLabel,display);
+  }
+  if(snapshot.reading.data?.kind==='quota'&&snapshot.reading.data.value.plan)card.append(element('p',`${label('plan')}: ${snapshot.reading.data.value.plan}`,'muted'));
   if(snapshot.reading.data?.kind==='balance')for(const wallet of snapshot.reading.data.value){
    const group=element('dl');const items=[[label('available'),`${wallet.currency} ${wallet.total}`],[label('paid'),`${wallet.currency} ${wallet.toppedUp}`],[label('granted'),`${wallet.currency} ${wallet.granted}`]];for(const [k,v]of items)group.append(element('dt',k),element('dd',v));card.append(group);
   }
   if(snapshot.reading.data?.kind==='quota')for(const quota of snapshot.reading.data.value.windows){
-   const window=element('div',undefined,'quota-window');const period=quota.minutes?`${quota.minutes>=1440?`${quota.minutes/1440}d`:quota.minutes>=60?`${quota.minutes/60}h`:`${quota.minutes}m`}`:label('window');
+   const window=element('div',undefined,'quota-window');const period=quota.minutes?periodLabel(quota.minutes):label('window');
+   if(quota.label)window.append(element('h3',label(quota.label==='claude'?'claudeGroup':quota.label)));
    window.append(element('p',`${period} · ${quota.remaining==null?'—':`${quota.remaining.toFixed(1)}% ${label('remaining')}`}`));
    if(quota.remaining!=null){const meter=element('progress');meter.max=100;meter.value=quota.remaining;meter.setAttribute('aria-label',period);window.append(meter);}
    if(quota.resetsAt)window.append(element('p',`${label('reset')}: ${new Date(quota.resetsAt*1000).toLocaleString(document.documentElement.lang)}`,'muted'));card.append(window);

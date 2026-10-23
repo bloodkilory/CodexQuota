@@ -1,4 +1,5 @@
 pub mod cc_switch;
+pub mod claude;
 pub mod codex;
 pub mod deepseek;
 #[cfg(feature = "desktop")]

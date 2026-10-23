@@ -32,19 +32,40 @@ try{
  // Exercise IPC reads while the worker updates the native tray.
  for(let n=0;n<10;n++){await click('#refresh');await new Promise(r=>setTimeout(r,150));await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/18.60/));}
  await screenshot('windows-deepseek-en');
+ await select('#display','USD');
+ await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/USD 3.20/));
+ await select('#display','CNY');
  await select('#source','codex');
  await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/76%/));
  await screenshot('windows-codex-en');
+ await select('#display','10080');
+ await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/62%/));
+ await select('#source','claude');
+ await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/82%/));
+ assert.match(await execute('return document.body.innerText'),/Sonnet weekly/);
+ assert.match(await execute('return document.body.innerText'),/Opus weekly/);
+ assert.equal(await execute('return document.querySelector(".card .eyebrow").textContent'),'Claude · Subscription quota');
+ await screenshot('windows-claude-en');
+ await select('#display','10080');
+ await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/39%/));
+ await select('#source','codex');
+ await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/62%/));
+ await select('#source','claude');
+ await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/39%/));
  await click('#settings');await select('#language','zh');await click('#save');
  await wait(async()=>assert.equal(await execute('return document.documentElement.lang'),'zh-Hans'));
- await click('#back');await select('#source','api:claude|demo');
+ await click('#back');
+ await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/39%/));
+ assert.match(await execute('return document.body.innerText'),/Sonnet 周额度/);
+ await screenshot('windows-claude-zh');
+ await select('#source','api:claude|demo');
  await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/18.60/));
  assert.equal(await execute('return document.querySelector("#refresh").textContent'),'立即刷新');
  await screenshot('windows-deepseek-zh');
  await click('#settings');await click('#check-update');
  await wait(async()=>assert.match(await execute('return document.body.innerText'),/暂无更新的 Windows 正式版/));
  await screenshot('windows-settings-zh');
- await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','language-switch','settings-update-check'],credentials:'synthetic only'},null,2));
+ await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','period-selection-retained','currency-selection','language-switch','settings-update-check'],credentials:'synthetic only'},null,2));
  console.log('PASS native Windows WebView2 GUI: source switch, language, balances, quotas, settings');
 }catch(error){spawnSync('powershell.exe',['-NoProfile','-File','scripts/capture-diagnostics.ps1'],{stdio:'inherit'});if(session)await screenshot('failure').catch(()=>{});throw error;}
 finally{if(session)await request('DELETE',`/session/${session}`).catch(()=>{});driver.kill();app.kill();await writeFile(path.join(resultDir,'native-app.log'),appLog);await writeFile(path.join(resultDir,'driver.log'),log);}

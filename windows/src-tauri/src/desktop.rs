@@ -1,5 +1,5 @@
 use crate::{
-    cc_switch, codex, deepseek,
+    cc_switch, claude, codex, deepseek,
     models::AppError,
     service::{Data, Preferences, Service, Snapshot},
     updates,
@@ -46,8 +46,10 @@ impl Backend {
 fn demo_data(source: &str) -> Data {
     if source == "codex" {
         Data::Quota(crate::models::parse_codex(&serde_json::json!({"rateLimits":{"planType":"Plus","primary":{"usedPercent":24,"windowDurationMins":300},"secondary":{"usedPercent":38,"windowDurationMins":10080}}})).unwrap())
+    } else if source == "claude" {
+        Data::Quota(crate::models::parse_claude(&serde_json::json!({"five_hour":{"utilization":18,"resets_at":"2026-10-23T20:00:00Z"},"seven_day":{"utilization":39},"seven_day_sonnet":{"utilization":7},"seven_day_opus":{"utilization":61}})).unwrap())
     } else {
-        Data::Balance(crate::models::parse_balance(&serde_json::json!({"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"18.60","granted_balance":"3.60","topped_up_balance":"15.00"}]})).unwrap())
+        Data::Balance(crate::models::parse_balance(&serde_json::json!({"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"18.60","granted_balance":"3.60","topped_up_balance":"15.00"},{"currency":"USD","total_balance":"3.20","granted_balance":"0.20","topped_up_balance":"3.00"}]})).unwrap())
     }
 }
 async fn poll(backend: Backend, app: tauri::AppHandle) {
@@ -60,6 +62,52 @@ async fn poll(backend: Backend, app: tauri::AppHandle) {
         Ok(demo_data(&source))
     } else if source == "codex" {
         codex::fetch(&backend.home).await.map(Data::Quota)
+    } else if source == "claude" {
+        let directory = claude::directory(&backend.home);
+        match directory.and_then(|directory| {
+            claude::read_credentials(&directory).map(|credential| (directory, credential))
+        }) {
+            Ok((directory, credential)) => {
+                let limited = {
+                    let mut service = backend.service.lock().unwrap();
+                    if !service.current(&request) {
+                        return;
+                    }
+                    service.validate_credential(&credential.generation)
+                };
+                let value = if let Some(error) = limited {
+                    Err(error)
+                } else {
+                    claude::fetch(&credential).await
+                };
+                if let Err(error) = &value {
+                    backend
+                        .service
+                        .lock()
+                        .unwrap()
+                        .record_rate_limit(&request, error);
+                }
+                match claude::read_credentials(&directory) {
+                    Ok(current) if current.generation == credential.generation => {
+                        value.map(Data::Quota)
+                    }
+                    _ => {
+                        let mut service = backend.service.lock().unwrap();
+                        if service.current(&request) {
+                            service.credentials_changed();
+                        }
+                        Err(AppError::new("source_changed"))
+                    }
+                }
+            }
+            Err(error) => {
+                let mut service = backend.service.lock().unwrap();
+                if service.current(&request) {
+                    service.credentials_changed();
+                }
+                Err(error)
+            }
+        }
     } else if let Some(id) = source.strip_prefix("api:") {
         let directory = PathBuf::from(&request.directory);
         match cc_switch::resolve(&directory, id) {
@@ -108,35 +156,45 @@ async fn poll(backend: Backend, app: tauri::AppHandle) {
     } else {
         Err(AppError::new("unsupported_source"))
     };
+    let accepted = backend.service.lock().unwrap().finish(request, result);
+    if accepted {
+        update_tray(&backend, &app);
+    }
+}
+fn update_tray(backend: &Backend, app: &tauri::AppHandle) {
     let tooltip = {
-        let mut service = backend.service.lock().unwrap();
-        if !service.finish(request, result) {
-            return;
-        }
-        let state = &service.state;
-        let amount = match &state.reading.data {
-            Some(Data::Balance(w)) => w.first().map(|w| format!("{} {}", w.currency, w.total)),
-            Some(Data::Quota(q)) => q
-                .windows
-                .first()
-                .and_then(|w| w.remaining)
-                .map(|n| format!("{n:.0}%")),
-            None => None,
-        }
-        .unwrap_or_else(|| "—".into());
+        let service = backend.service.lock().unwrap();
         format!(
-            "QuotaNest · {amount}{}",
-            if state.reading.error.is_some() {
+            "QuotaNest · {}{}",
+            service.display_amount(),
+            if service.state.reading.error.is_some() {
                 " · !"
             } else {
                 ""
             }
         )
     };
-    // Tray changes synchronously dispatch to the UI thread, whose IPC handlers also read service.
+    // Never hold service while dispatching synchronously to the UI thread.
     if let Some(tray) = app.tray_by_id("quota") {
         let _ = tray.set_tooltip(Some(tooltip));
     }
+}
+#[tauri::command]
+fn select_display(
+    value: String,
+    backend: tauri::State<'_, Backend>,
+    app: tauri::AppHandle,
+) -> Result<Snapshot, AppError> {
+    let snapshot = {
+        let mut service = backend.service.lock().unwrap();
+        service.select_display(&value)?;
+        if !backend.demo {
+            backend.save(&service.state.preferences)?;
+        }
+        service.snapshot()
+    };
+    update_tray(&backend, &app);
+    Ok(snapshot)
 }
 
 fn start_poll(backend: &Backend, _app: &tauri::AppHandle) {
@@ -178,15 +236,10 @@ fn discover(directory: String, backend: tauri::State<'_, Backend>) -> Result<Sna
     }
     match cc_switch::discover(&PathBuf::from(&directory)) {
         Ok(connections) => {
-            if service.state.preferences.directory != directory {
-                let source = service.state.preferences.source.clone();
-                service.select("codex")?;
-                service.state.preferences.source = source;
-            }
-            service.state.preferences.directory = directory;
+            service.set_directory(directory);
             service.state.connections = connections;
             service.state.discovery_error = None;
-            if service.state.preferences.source != "codex"
+            if service.state.preferences.source.starts_with("api:")
                 && !service.state.connections.iter().any(|c| {
                     c.supported && format!("api:{}", c.id) == service.state.preferences.source
                 })
@@ -196,7 +249,7 @@ fn discover(directory: String, backend: tauri::State<'_, Backend>) -> Result<Sna
             backend.save(&service.state.preferences)?;
         }
         Err(error) => {
-            if error.code != "source_busy" && service.state.preferences.source != "codex" {
+            if error.code != "source_busy" && service.state.preferences.source.starts_with("api:") {
                 service.credentials_changed();
             }
             service.state.discovery_error = Some(error);
@@ -330,7 +383,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app,_,_|{if let Some(window)=app.get_webview_window("main"){show(&window);}}))
 
-        .invoke_handler(tauri::generate_handler![snapshot,refresh,select_source,discover,save_preferences,check_update,install_update,quit])
+        .invoke_handler(tauri::generate_handler![snapshot,refresh,select_display,select_source,discover,save_preferences,check_update,install_update,quit])
         .setup(|app|{
             let home=std::env::var_os(if cfg!(windows){"USERPROFILE"}else{"HOME"}).map(PathBuf::from).ok_or("home missing")?;
             let preferences=app.path().app_config_dir()?.join("preferences.json");
@@ -341,7 +394,7 @@ pub fn run() {
             if demo {
                 service.state.connections=vec![cc_switch::Connection{id:"claude|demo".into(),name:"DeepSeek".into(),harness:"claude".into(),origin:"https://api.deepseek.com".into(),supported:true}];
                 service.select("api:claude|demo")?;service.state.reading.data=Some(demo_data("api:claude|demo"));service.state.reading.updated=Some(crate::models::now());
-            }else if service.state.preferences.source!="codex" {
+            }else if service.state.preferences.source.starts_with("api:") {
                 match cc_switch::discover(&PathBuf::from(&service.state.preferences.directory)){Ok(c)=>service.state.connections=c,Err(e)=>service.state.discovery_error=Some(e)}
             }
             let backend=Backend{service:Arc::new(Mutex::new(service)),work:Arc::new(tokio::sync::Notify::new()),update_work:Arc::new(tokio::sync::Mutex::new(())),home,preferences,demo};

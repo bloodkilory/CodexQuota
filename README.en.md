@@ -101,4 +101,4 @@ The 64-point capsule has a narrow period button after a vertical separator. Clic
 
 ## Windows beta
 
-An independent Windows 11 x64 beta preserves the native Mac app. It supports CC Switch / DeepSeek official API balances and native Codex subscription quotas. Windows Actions builds beta installers; Windows is not yet listed as a fully validated platform. See [Windows beta instructions](docs/windows/README.md).
+An independent Windows 11 x64 beta preserves the native Mac app. It supports CC Switch / DeepSeek official API balances and native Codex/Claude subscription quotas. Windows Actions builds beta installers; Windows is not yet listed as a fully validated platform. See [Windows beta instructions](docs/windows/README.md).

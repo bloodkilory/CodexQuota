@@ -27,6 +27,8 @@ pub struct Wallet {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuotaWindow {
+    #[serde(default)]
+    pub label: Option<String>,
     pub remaining: Option<f64>,
     pub minutes: Option<u64>,
     pub resets_at: Option<f64>,
@@ -95,6 +97,7 @@ pub fn parse_codex(root: &Value) -> Result<Quota, AppError> {
         .iter()
         .filter_map(|key| bucket.get(key).filter(|v| v.is_object()))
         .map(|v| QuotaWindow {
+            label: None,
             remaining: v["usedPercent"]
                 .as_f64()
                 .filter(|n| n.is_finite())
@@ -124,3 +127,37 @@ impl std::fmt::Display for AppError {
     }
 }
 impl std::error::Error for AppError {}
+
+pub fn parse_claude(root: &Value) -> Result<Quota, AppError> {
+    let windows = [
+        ("five_hour", 300, "claude"),
+        ("seven_day", 10080, "claude"),
+        ("seven_day_sonnet", 10080, "sonnet"),
+        ("seven_day_opus", 10080, "opus"),
+    ]
+    .into_iter()
+    .filter_map(|(key, minutes, label)| {
+        let row = &root[key];
+        let used = row["utilization"].as_f64().filter(|v| v.is_finite())?;
+        let resets_at = row["resets_at"]
+            .as_str()
+            .and_then(|s| {
+                time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok()
+            })
+            .map(|d| d.unix_timestamp() as f64);
+        Some(QuotaWindow {
+            label: Some(label.into()),
+            remaining: Some((100.0 - used).clamp(0.0, 100.0)),
+            minutes: Some(minutes),
+            resets_at,
+        })
+    })
+    .collect::<Vec<_>>();
+    if windows.is_empty() {
+        return Err(AppError::new("invalid_quota"));
+    }
+    Ok(Quota {
+        plan: None,
+        windows,
+    })
+}

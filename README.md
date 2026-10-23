@@ -170,4 +170,4 @@ Apple Silicon 产物为交叉编译版本；当前本地运行验证在 Intel Ma
 
 ## Windows 内测版
 
-新增独立的 Windows 11 x64 内测客户端，保留现有 Mac 原生版。支持 CC Switch / DeepSeek 官方 API 余额及原生 Codex 套餐额度；内测安装包由 Windows Actions 生成，未列为正式支持平台。详见 [Windows 内测说明](docs/windows/README.md)。
+新增独立的 Windows 11 x64 内测客户端，保留现有 Mac 原生版。支持 CC Switch / DeepSeek 官方 API 余额及原生 Codex / Claude 官方套餐额度；支持按来源记住周期与币种，内测安装包由 Windows Actions 生成，未列为正式支持平台。详见 [Windows 内测说明](docs/windows/README.md)。
