@@ -10,7 +10,7 @@ if (-not (Test-Path $exe)) { throw 'Installed app missing' }
 $preferencesDir = Join-Path $env:APPDATA 'app.quotanest.windows'
 New-Item -ItemType Directory -Path $preferencesDir -Force | Out-Null
 $preferencesFile = Join-Path $preferencesDir 'preferences.json'
-$preferences = @{source='codex'; language='zh'; directory=(Join-Path $env:USERPROFILE '.cc-switch'); autostart=$true} | ConvertTo-Json
+$preferences = @{source='codex'; language='zh'; directory=(Join-Path $env:USERPROFILE '.cc-switch'); autostart=$true; model=@{claude='sonnet'}; display=@{claude='10080'}} | ConvertTo-Json
 [IO.File]::WriteAllText($preferencesFile, $preferences, [Text.UTF8Encoding]::new($false))
 $beforeHash = (Get-FileHash $preferencesFile -Algorithm SHA256).Hash
 $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'

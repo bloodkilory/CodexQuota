@@ -169,6 +169,31 @@ fn update_tray(backend: &Backend, app: &tauri::AppHandle) {
         let service = backend.service.lock().unwrap();
         let amount = service.display_amount();
         let stale = service.state.reading.error.is_some();
+        let context = service
+            .display_window()
+            .map(|w| {
+                let model = match w.label.as_deref() {
+                    Some("sonnet") => "Sonnet",
+                    Some("opus") => "Opus",
+                    Some("claude") => "Claude subscription",
+                    Some(other) => other,
+                    None => "",
+                };
+                let period = w
+                    .minutes
+                    .map(|m| {
+                        if m >= 1440 {
+                            format!("{}d", m as f64 / 1440.)
+                        } else if m >= 60 {
+                            format!("{}h", m as f64 / 60.)
+                        } else {
+                            format!("{m}m")
+                        }
+                    })
+                    .unwrap_or_default();
+                format!(" · {model} {period}")
+            })
+            .unwrap_or_default();
         let ratio = amount.strip_suffix('%').and_then(|v| v.parse::<f64>().ok());
         let text = if let Some(n) = ratio {
             format!("{n:.0}")
@@ -181,7 +206,7 @@ fn update_tray(backend: &Backend, app: &tauri::AppHandle) {
         };
         (
             format!(
-                "QuotaNest · {} · {amount}{}",
+                "QuotaNest · {}{context} · {amount}{}",
                 if service.state.preferences.source == "claude" {
                     "Claude"
                 } else if service.state.preferences.source == "codex" {
@@ -310,8 +335,9 @@ fn demo_tray_bounds(
         .is_some_and(|w| w.is_visible().unwrap_or(false));
     let visible = hover.is_visible().unwrap_or(false);
     let state = backend.hover.lock().unwrap();
+    let service = backend.service.lock().unwrap();
     Ok(
-        serde_json::json!({"lastEvent":backend.demo_tray_event.lock().unwrap().clone(),"cursor":cursor.map(|p| [p.x,p.y]),"mainVisible":main_visible,"controllerVisible":state.visible,"anchor":state.anchor.map(|a| [a.x,a.y,a.w,a.h]),"tray":{"x":rect.x,"y":rect.y,"w":rect.w,"h":rect.h},"card":{"x":card.x,"y":card.y,"w":card.w,"h":card.h},"visible":visible}),
+        serde_json::json!({"displayAmount":service.display_amount(),"selectedModel":service.selected_model(),"displayWindow":service.display_window(),"lastEvent":backend.demo_tray_event.lock().unwrap().clone(),"cursor":cursor.map(|p| [p.x,p.y]),"mainVisible":main_visible,"controllerVisible":state.visible,"anchor":state.anchor.map(|a| [a.x,a.y,a.w,a.h]),"tray":{"x":rect.x,"y":rect.y,"w":rect.w,"h":rect.h},"card":{"x":card.x,"y":card.y,"w":card.w,"h":card.h},"visible":visible}),
     )
 }
 #[tauri::command]
@@ -323,6 +349,23 @@ fn select_display(
     let snapshot = {
         let mut service = backend.service.lock().unwrap();
         service.select_display(&value)?;
+        if !backend.demo {
+            backend.save(&service.state.preferences)?;
+        }
+        service.snapshot()
+    };
+    update_tray(&backend, &app);
+    Ok(snapshot)
+}
+#[tauri::command]
+fn select_model(
+    value: String,
+    backend: tauri::State<'_, Backend>,
+    app: tauri::AppHandle,
+) -> Result<Snapshot, AppError> {
+    let snapshot = {
+        let mut service = backend.service.lock().unwrap();
+        service.select_model(&value)?;
         if !backend.demo {
             backend.save(&service.state.preferences)?;
         }
@@ -527,7 +570,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app,_,_|controls(app)))
 
-        .invoke_handler(tauri::generate_handler![snapshot,hide_controls,demo_tray_bounds,refresh,select_display,select_source,discover,save_preferences,check_update,install_update,quit])
+        .invoke_handler(tauri::generate_handler![snapshot,hide_controls,demo_tray_bounds,refresh,select_display,select_model,select_source,discover,save_preferences,check_update,install_update,quit])
         .setup(|app|{
             let home=std::env::var_os(if cfg!(windows){"USERPROFILE"}else{"HOME"}).map(PathBuf::from).ok_or("home missing")?;
             let preferences=app.path().app_config_dir()?.join("preferences.json");

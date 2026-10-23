@@ -137,23 +137,27 @@ pub fn parse_claude(root: &Value) -> Result<Quota, AppError> {
     ]
     .into_iter()
     .filter_map(|(key, minutes, label)| {
-        let row = &root[key];
-        let used = row["utilization"].as_f64().filter(|v| v.is_finite())?;
-        let resets_at = row["resets_at"]
-            .as_str()
+        let row = root[key].as_object()?;
+        let used = row
+            .get("utilization")
+            .and_then(Value::as_f64)
+            .filter(|v| v.is_finite());
+        let resets_at = row
+            .get("resets_at")
+            .and_then(Value::as_str)
             .and_then(|s| {
                 time::OffsetDateTime::parse(s, &time::format_description::well_known::Rfc3339).ok()
             })
             .map(|d| d.unix_timestamp() as f64);
         Some(QuotaWindow {
             label: Some(label.into()),
-            remaining: Some((100.0 - used).clamp(0.0, 100.0)),
+            remaining: used.map(|used| (100.0 - used).clamp(0.0, 100.0)),
             minutes: Some(minutes),
             resets_at,
         })
     })
     .collect::<Vec<_>>();
-    if windows.is_empty() {
+    if !windows.iter().any(|w| w.remaining.is_some()) {
         return Err(AppError::new("invalid_quota"));
     }
     Ok(Quota {

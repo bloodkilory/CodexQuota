@@ -1,6 +1,6 @@
 use crate::{
     cc_switch::Connection,
-    models::{now, AppError, Quota, Wallet},
+    models::{now, AppError, Quota, QuotaWindow, Wallet},
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::Path};
@@ -13,6 +13,8 @@ pub struct Preferences {
     pub autostart: bool,
     #[serde(default)]
     pub display: BTreeMap<String, String>,
+    #[serde(default)]
+    pub model: BTreeMap<String, String>,
 }
 impl Preferences {
     pub fn defaults(home: &Path) -> Self {
@@ -22,6 +24,7 @@ impl Preferences {
             directory: home.join(".cc-switch").to_string_lossy().into(),
             autostart: false,
             display: BTreeMap::new(),
+            model: BTreeMap::new(),
         }
     }
 }
@@ -109,10 +112,70 @@ impl Service {
         }
         self.state.preferences.directory = directory;
     }
-    pub fn select_display(&mut self, value: &str) -> Result<(), AppError> {
-        let valid = match &self.state.reading.data {
+    pub fn selected_model(&self) -> Option<&str> {
+        let saved = self
+            .state
+            .preferences
+            .model
+            .get(&self.state.preferences.source)?;
+        match &self.state.reading.data {
+            Some(Data::Quota(q))
+                if !saved.is_empty()
+                    && q.windows.iter().any(|w| w.label.as_ref() == Some(saved)) =>
+            {
+                Some(saved)
+            }
+            _ => None,
+        }
+    }
+    fn model_windows(&self) -> Vec<&QuotaWindow> {
+        let selected = self.selected_model();
+        match &self.state.reading.data {
             Some(Data::Quota(q)) => q
                 .windows
+                .iter()
+                .filter(|w| selected.is_none() || w.label.as_deref() == selected)
+                .collect(),
+            _ => vec![],
+        }
+    }
+    pub fn select_model(&mut self, value: &str) -> Result<(), AppError> {
+        if !value.is_empty()
+            && !matches!(&self.state.reading.data, Some(Data::Quota(q)) if q.windows.iter().any(|w| w.label.as_deref() == Some(value)))
+        {
+            return Err(AppError::new("invalid_quota"));
+        }
+        self.state
+            .preferences
+            .model
+            .insert(self.state.preferences.source.clone(), value.into());
+        Ok(())
+    }
+    pub fn display_window(&self) -> Option<&QuotaWindow> {
+        let windows = self.model_windows();
+        let minutes = self
+            .state
+            .preferences
+            .display
+            .get(&self.state.preferences.source)
+            .and_then(|s| s.parse::<u64>().ok())
+            .filter(|m| windows.iter().any(|w| w.minutes == Some(*m)))
+            .or_else(|| windows.iter().filter_map(|w| w.minutes).min());
+        let matching = windows
+            .into_iter()
+            .filter(|w| w.minutes == minutes)
+            .collect::<Vec<_>>();
+        matching
+            .iter()
+            .copied()
+            .filter(|w| w.remaining.is_some())
+            .min_by(|a, b| a.remaining.unwrap().total_cmp(&b.remaining.unwrap()))
+            .or_else(|| matching.first().copied())
+    }
+    pub fn select_display(&mut self, value: &str) -> Result<(), AppError> {
+        let valid = match &self.state.reading.data {
+            Some(Data::Quota(_)) => self
+                .model_windows()
                 .iter()
                 .any(|w| w.minutes.is_some_and(|m| m.to_string() == value)),
             Some(Data::Balance(wallets)) => wallets.iter().any(|w| w.currency == value),
@@ -134,18 +197,10 @@ impl Service {
             .display
             .get(&self.state.preferences.source);
         match &self.state.reading.data {
-            Some(Data::Quota(q)) => {
-                let minutes = choice
-                    .and_then(|s| s.parse::<u64>().ok())
-                    .filter(|m| q.windows.iter().any(|w| w.minutes == Some(*m)))
-                    .or_else(|| q.windows.iter().find_map(|w| w.minutes));
-                q.windows
-                    .iter()
-                    .filter(|w| w.minutes == minutes)
-                    .filter_map(|w| w.remaining)
-                    .reduce(f64::min)
-                    .map(|n| format!("{n:.0}%"))
-            }
+            Some(Data::Quota(_)) => self
+                .display_window()
+                .and_then(|w| w.remaining)
+                .map(|n| format!("{n:.0}%")),
             Some(Data::Balance(wallets)) => choice
                 .and_then(|c| wallets.iter().find(|w| &w.currency == c))
                 .or_else(|| wallets.first())

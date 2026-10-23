@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { text, present, demoSnapshot } from '../src/presentation.js';
+import { text, present, demoSnapshot, modelChoices, displayChoices } from '../src/presentation.js';
 test('Chinese and English render the same selected source without network calls',()=>{
  const s=demoSnapshot(); s.preferences.language='en';
  assert.equal(text(s,'refresh'),'Refresh now'); assert.match(present(s).amount,/18.60/);
@@ -36,4 +36,38 @@ test('compact reset time belongs to the quota group supplying the displayed mini
  s.reading.data.value.windows[3].remaining=null;
  assert.equal(present(s).amount,'61%');assert.equal(present(s).quotaWindow?.resetsAt,111);
  assert.equal(present(demoSnapshot()).quotaWindow,undefined);
+});
+
+test('selected model isolates balance and reset and falls back to its available period',()=>{
+ const s=demoSnapshot('claude');
+ Object.assign(s.preferences,{model:{claude:'sonnet'},display:{claude:'300'}});
+ if(s.reading.data?.kind!=='quota')throw new Error('quota fixture missing');
+ s.reading.data.value.windows[2].resetsAt=333;
+ assert.equal(present(s).amount,'93%');assert.equal(present(s).selected,'10080');assert.equal(present(s).quotaWindow?.resetsAt,333);
+ s.reading.data.value.windows.reverse();assert.equal(present(s).amount,'93%');
+ Object.assign(s.preferences,{model:{claude:'opus'}});assert.equal(present(s).amount,'39%');
+ Object.assign(s.preferences,{model:{claude:'claude'},display:{claude:'10080'}});assert.equal(present(s).amount,'61%');
+});
+test('unknown selected model never borrows quota and deleted model returns to automatic',()=>{
+ const s=demoSnapshot('claude');Object.assign(s.preferences,{model:{claude:'sonnet'},display:{claude:'10080'}});
+ if(s.reading.data?.kind!=='quota')throw new Error('quota fixture missing');
+ s.reading.data.value.windows[2].remaining=null;
+ assert.equal(present(s).amount,'—');assert.equal(present(s).model,'sonnet');
+ s.reading.data.value.windows=s.reading.data.value.windows.filter(w=>w.label!=='sonnet');
+ assert.equal(present(s).amount,'39%');assert.equal(present(s).model,'');
+});
+test('model preferences survive serialization and remain source scoped',()=>{
+ const s=demoSnapshot('claude');Object.assign(s.preferences,{model:{claude:'sonnet',codex:'other'},display:{claude:'10080',codex:'300'}});
+ const restored=JSON.parse(JSON.stringify(s));assert.equal(present(restored).amount,'93%');
+ restored.preferences.source='codex';restored.reading=demoSnapshot('codex').reading;
+ assert.equal(present(restored).amount,'76%');
+});
+
+test('radio options use stable model identity and periods belong to selected model',()=>{
+ const s=demoSnapshot('claude');s.preferences.model={claude:'sonnet'};
+ assert.deepEqual(modelChoices(s).map(c=>c.value),['','claude','opus','sonnet']);
+ assert.deepEqual(displayChoices(s),[{value:'10080',label:'7d'}]);
+ assert.equal(present(s).model,'sonnet');
+ s.preferences.model={claude:'missing'};assert.equal(present(s).model,'');
+ assert.deepEqual(displayChoices(s).map(c=>c.value),['300','10080']);
 });

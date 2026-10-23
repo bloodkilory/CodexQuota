@@ -52,6 +52,22 @@ try{
  assert.match(await execute('return document.body.innerText'),/Opus weekly/);
  assert.equal(await execute('return document.querySelector(".card .eyebrow").textContent'),'Claude · Subscription quota');
  await screenshot('windows-claude-en');
+ // WebDriver clicks real radio inputs in the installed WebView; no synthetic DOM events.
+ await click('#model-sonnet');
+ await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'93%'));
+ assert.equal(await execute('return document.querySelector("#model-sonnet").checked'),true);
+ assert.match(await execute('return document.querySelector(".selected-reading").textContent'),/Sonnet · 7d/);
+ let selectedTray=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");
+ assert.equal(selectedTray.selectedModel,'sonnet');assert.equal(selectedTray.displayAmount,'93%');assert.equal(selectedTray.displayWindow.minutes,10080);
+ await screenshot('windows-model-sonnet-en');
+ await click('#refresh');await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'93%'));
+ await click('#model-opus');await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'39%'));
+ selectedTray=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");assert.equal(selectedTray.selectedModel,'opus');assert.equal(selectedTray.displayAmount,'39%');
+ await screenshot('windows-model-opus-en');
+ await click('#model-claude');await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'82%'));
+ await select('#display','10080');await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'61%'));
+ await click('#model-auto');await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'39%'));
+
  await select('#display','10080');
  await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/39%/));
  await select('#source','codex');
@@ -72,8 +88,12 @@ try{
  await wait(async()=>assert.match(await execute('return document.body.innerText'),/暂无更新的 Windows 正式版/));
  await screenshot('windows-settings-zh');
  // Exercise the actual native notification icon with real Windows pointer input.
- await execute("return window.__TAURI_INTERNALS__.invoke('select_source',{source:'claude'})");
- await execute("return window.__TAURI_INTERNALS__.invoke('select_display',{value:'300'})");
+ await click('#back');await select('#source','claude');await click('#model-sonnet');
+ await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'93%'));
+ await select('#source','codex');await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'62%'));
+ await select('#source','claude');await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'93%'));
+ assert.equal(await execute('return document.querySelector("#model-sonnet").checked'),true);
+ await screenshot('windows-model-sonnet-zh');
  await execute("return window.__TAURI_INTERNALS__.invoke('hide_controls')");
  function native(mode,options={}){const args=['-NoProfile','-File','scripts/native-tray.ps1','-Mode',mode];for(const [k,v] of Object.entries(options))args.push(`-${k}`,String(v));const r=spawnSync('powershell.exe',args,{encoding:'utf8',windowsHide:true});if(r.status!==0)throw new Error(r.stderr||r.stdout);}
  native('Prepare');const rect=JSON.parse((await readFile(path.join(resultDir,'native-tray-rect.json'),'utf8')).replace(/^\uFEFF/,''));
@@ -81,10 +101,11 @@ try{
  let bounds=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");await writeFile(path.join(resultDir,'hover-bounds.json'),JSON.stringify(bounds));
  if(!bounds.visible){native('Click',{X:rect.x+rect.w/2,Y:rect.y+rect.h/2});await writeFile(path.join(resultDir,'tray-click-diagnostic.json'),JSON.stringify(await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")));}
  assert.equal(bounds.visible,true,'hover card should appear');
+ assert.equal(bounds.displayAmount,'93%');assert.equal(bounds.selectedModel,'sonnet');assert.equal(bounds.displayWindow.minutes,10080);
  assert.ok(bounds.card.w<=260&&bounds.card.h<=160,'hover card must match the compact target');
  assert.ok(bounds.card.y+bounds.card.h<=rect.y||bounds.card.y>=rect.y+rect.h,'hover card must not cover the tray icon');
  const left=Math.min(bounds.card.x,rect.x)-8,top=Math.min(bounds.card.y,rect.y)-8;
- native('Capture',{X:left,Y:top,W:Math.max(bounds.card.x+bounds.card.w,rect.x+rect.w)-left+8,H:Math.max(bounds.card.y+bounds.card.h,rect.y+rect.h)-top+8,Name:'windows-tray-claude'});
+ native('Capture',{X:left,Y:top,W:Math.max(bounds.card.x+bounds.card.w,rect.x+rect.w)-left+8,H:Math.max(bounds.card.y+bounds.card.h,rect.y+rect.h)-top+8,Name:'windows-tray-sonnet'});
  native('Capture',{X:rect.x,Y:rect.y,W:rect.w,H:rect.h,Name:'windows-tray-icon'});
  const focus=JSON.parse((await readFile(path.join(resultDir,'native-focus.json'),'utf8')).replace(/^\uFEFF/,''));assert.notEqual(focus.foreground,'QuotaNest Usage','hover must not steal focus');
  native('Move',{X:bounds.card.x+bounds.card.w/2,Y:bounds.card.y+40});
@@ -95,6 +116,16 @@ try{
  await wait(()=>find('#language'));assert.equal((await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")).visible,false);
  assert.ok(await execute('return document.querySelector("#close").getBoundingClientRect().top >= 0'),'settings reopens at the top');
  await screenshot('windows-tray-click-settings');
+ await click('#back');await click('#model-opus');
+ await wait(async()=>assert.equal(await execute('return document.querySelector(".amount")?.textContent'),'39%'));
+ assert.equal(await execute('return document.querySelector("#model-opus").checked'),true);
+ await execute("return window.__TAURI_INTERNALS__.invoke('hide_controls')");
+ native('Move',{X:100,Y:100});native('Move',{X:rect.x+rect.w/2,Y:rect.y+rect.h/2});
+ bounds=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");
+ assert.equal(bounds.visible,true);assert.equal(bounds.displayAmount,'39%');assert.equal(bounds.selectedModel,'opus');
+ native('Capture',{X:left,Y:top,W:Math.max(bounds.card.x+bounds.card.w,rect.x+rect.w)-left+8,H:Math.max(bounds.card.y+bounds.card.h,rect.y+rect.h)-top+8,Name:'windows-tray-opus'});
+ await writeFile(path.join(resultDir,'model-tray-selection.json'),JSON.stringify(bounds,null,2));
+
  // Check the rendered hover WebView too: a small window must retain all rows without clipping.
  let compactChecked=false;
  for(const handle of await request('GET',`/session/${session}/window/handles`)){
@@ -102,11 +133,12 @@ try{
   if(!await execute('return !!document.querySelector(".hover-shell")'))continue;
   const layout=await execute('const shell=document.querySelector(".hover-shell");return {width:innerWidth,height:innerHeight,contentHeight:shell.getBoundingClientRect().height,scrollWidth:document.querySelector("#app").scrollWidth,rows:document.querySelectorAll(".hover-row").length,text:shell.innerText}');
   await writeFile(path.join(resultDir,'compact-layout.json'),JSON.stringify(layout));
-  assert.equal(layout.width,240);assert.ok(layout.contentHeight<=layout.height,'all compact quota rows fit vertically');assert.ok(layout.scrollWidth<=layout.width,'compact hover has no horizontal clipping');assert.equal(layout.rows,4);assert.match(layout.text,/Sonnet/);assert.match(layout.text,/Opus/);
+  assert.equal(layout.width,240);assert.ok(layout.contentHeight<=layout.height,'all compact quota rows fit vertically');assert.ok(layout.scrollWidth<=layout.width,'compact hover has no horizontal clipping');assert.equal(layout.rows,4);assert.match(layout.text,/Sonnet/);assert.match(layout.text,/Opus/);assert.match(layout.text,/39%/);
+  assert.equal(await execute('return document.querySelector(".hover-name").textContent'),'Claude · Opus');assert.equal(await execute('return document.querySelectorAll("input,button,select").length'),0);
   compactChecked=true;break;
  }
  assert.ok(compactChecked,'compact hover WebView was checked');
- await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','period-selection-retained','currency-selection','language-switch','settings-update-check','native-tray-hover','hover-preserves-focus','hover-card-retention','tray-click-settings'],credentials:'synthetic only'},null,2));
+ await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','model-radio-mouse-selection','model-period-fallback','model-refresh-retained','model-source-retained','model-tray-reading','settings-back-model-selection','period-selection-retained','currency-selection','language-switch','settings-update-check','native-tray-hover','hover-preserves-focus','hover-card-retention','tray-click-settings'],credentials:'synthetic only'},null,2));
  console.log('PASS native Windows WebView2 GUI: source switch, language, balances, quotas, settings');
 }catch(error){spawnSync('powershell.exe',['-NoProfile','-File','scripts/capture-diagnostics.ps1'],{stdio:'inherit'});if(session)await screenshot('failure').catch(()=>{});throw error;}
 finally{if(session)await request('DELETE',`/session/${session}`).catch(()=>{});driver.kill();app.kill();spawnSync('taskkill.exe',['/IM','QuotaNest.exe','/T','/F'],{windowsHide:true});await writeFile(path.join(resultDir,'native-app.log'),appLog);await writeFile(path.join(resultDir,'driver.log'),log);}

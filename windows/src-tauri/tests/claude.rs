@@ -136,3 +136,98 @@ fn missing_primary_duration_uses_first_explicit_period_in_tray() {
     service.finish(request,Ok(Data::Quota(models::parse_codex(&json!({"rateLimits":{"primary":{"usedPercent":20},"secondary":{"usedPercent":50,"windowDurationMins":10080}}})).unwrap())));
     assert_eq!(service.display_amount(), "50%");
 }
+
+#[test]
+fn saved_model_filters_tray_and_survives_restart() {
+    use quotanest_windows::service::{Data, Preferences, Service};
+    let mut prefs: Preferences = serde_json::from_value(json!({"source":"claude","language":"en","directory":"demo","autostart":false,"display":{"claude":"300"},"model":{"claude":"sonnet","codex":"other"}})).unwrap();
+    prefs = serde_json::from_slice(&serde_json::to_vec(&prefs).unwrap()).unwrap();
+    let mut service = Service::new(prefs);
+    let quota = models::parse_claude(&json!({"five_hour":{"utilization":18},"seven_day":{"utilization":39},"seven_day_sonnet":{"utilization":7},"seven_day_opus":{"utilization":61}})).unwrap();
+    service.state.reading.data = Some(Data::Quota(quota.clone()));
+    assert_eq!(service.display_amount(), "93%");
+    let mut reordered = quota.clone();
+    reordered.windows.reverse();
+    service.state.reading.data = Some(Data::Quota(reordered));
+    assert_eq!(service.display_amount(), "93%");
+    let mut unknown = quota.clone();
+    unknown.windows[2].remaining = None;
+    service.state.reading.data = Some(Data::Quota(unknown));
+    assert_eq!(service.display_amount(), "—");
+    let mut deleted = quota;
+    deleted
+        .windows
+        .retain(|w| w.label.as_deref() != Some("sonnet"));
+    service.state.reading.data = Some(Data::Quota(deleted));
+    assert_eq!(service.display_amount(), "82%");
+}
+
+#[test]
+fn model_selection_uses_stable_labels_and_matching_reset_and_period() {
+    use quotanest_windows::service::{Data, Preferences, Service};
+    let dir = tempfile::tempdir().unwrap();
+    let mut service = Service::new(Preferences::defaults(dir.path()));
+    service.select("claude").unwrap();
+    let quota = models::parse_claude(&json!({"five_hour":{"utilization":18},"seven_day":{"utilization":39},"seven_day_sonnet":{"utilization":7,"resets_at":"2026-10-30T10:00:00Z"},"seven_day_opus":{"utilization":61,"resets_at":"2026-10-31T10:00:00Z"}})).unwrap();
+    service.state.reading.data = Some(Data::Quota(quota.clone()));
+    service.select_display("300").unwrap();
+    service.select_model("sonnet").unwrap();
+    assert_eq!(service.selected_model(), Some("sonnet"));
+    assert_eq!(service.display_amount(), "93%");
+    assert_eq!(service.display_window().unwrap().minutes, Some(10080));
+    assert_eq!(
+        service.display_window().unwrap().resets_at,
+        Some(1793354400.)
+    );
+    assert!(service.select_display("300").is_err());
+    assert!(service.select_model("missing").is_err());
+    service.select_model("opus").unwrap();
+    assert_eq!(service.display_amount(), "39%");
+    service.select_model("claude").unwrap();
+    service.select_display("10080").unwrap();
+    assert_eq!(service.display_amount(), "61%");
+    service.select_model("").unwrap();
+    assert_eq!(service.display_amount(), "39%");
+    service.select_model("sonnet").unwrap();
+    let prefs: Preferences =
+        serde_json::from_slice(&serde_json::to_vec(&service.state.preferences).unwrap()).unwrap();
+    let mut restored = Service::new(prefs);
+    restored.select("codex").unwrap();
+    restored.state.reading.data = Some(Data::Quota(quota.clone()));
+    restored.select_model("opus").unwrap();
+    assert_eq!(restored.display_amount(), "39%");
+    restored.select("claude").unwrap();
+    restored.state.reading.data = Some(Data::Quota(quota));
+    assert_eq!(restored.display_amount(), "93%");
+    let request = restored.begin().unwrap();
+    restored.finish(request, Err(models::AppError::new("network")));
+    assert_eq!(restored.display_amount(), "93%");
+}
+#[test]
+fn old_preferences_default_to_automatic() {
+    use quotanest_windows::service::Preferences;
+    let prefs:Preferences=serde_json::from_value(json!({"source":"claude","language":"en","directory":"demo","autostart":false,"display":{"claude":"10080"}})).unwrap();
+    assert!(prefs.model.is_empty());
+    assert_eq!(prefs.display.get("claude").unwrap(), "10080");
+}
+
+#[test]
+fn unknown_model_payload_does_not_fall_back_to_another_model() {
+    use quotanest_windows::service::{Data, Preferences, Service};
+    let dir = tempfile::tempdir().unwrap();
+    let mut service = Service::new(Preferences::defaults(dir.path()));
+    service.select("claude").unwrap();
+    service
+        .state
+        .preferences
+        .model
+        .insert("claude".into(), "sonnet".into());
+    let quota=models::parse_claude(&json!({"five_hour":{"utilization":18},"seven_day_sonnet":{"utilization":null,"resets_at":"2026-10-30T10:00:00Z"}})).unwrap();
+    service.state.reading.data = Some(Data::Quota(quota));
+    assert_eq!(service.display_amount(), "—");
+    assert_eq!(service.selected_model(), Some("sonnet"));
+    assert_eq!(
+        service.display_window().unwrap().resets_at,
+        Some(1793354400.)
+    );
+}

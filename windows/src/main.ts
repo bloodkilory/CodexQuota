@@ -1,7 +1,7 @@
 import {invoke} from '@tauri-apps/api/core';
 import {getCurrentWindow} from '@tauri-apps/api/window';
 import {listen} from '@tauri-apps/api/event';
-import {demoSnapshot,isChinese,present,text,displayChoices,periodLabel,type Snapshot} from './presentation';
+import {demoSnapshot,isChinese,present,text,displayChoices,modelChoices,modelLabel,periodLabel,type Snapshot} from './presentation';
 import './style.css';
 const native=!!(window as unknown as {__TAURI_INTERNALS__?:unknown}).__TAURI_INTERNALS__;
 const hover=native?getCurrentWindow().label==='hover':location.hash==='#hover';
@@ -35,7 +35,7 @@ function sourcePicker(shell:HTMLElement){
 }
 function renderHover(){
  const view=present(snapshot);const shell=element('main',undefined,'hover-shell');const head=element('header');
- const title=element('span',view.name,'hover-name');title.title=view.name;
+ const title=element('span',view.model?`${view.name} · ${modelLabel(snapshot,view.model)}`:view.name,'hover-name');title.title=title.textContent||view.name;
  const selected=element('div',undefined,'hover-selected');
  if(view.selected&&/^\d+$/.test(view.selected))selected.append(element('span',periodLabel(Number(view.selected)),'period-badge'));
  selected.append(element('strong',view.amount,'hover-amount'));head.append(title,selected);shell.append(head);
@@ -84,6 +84,21 @@ function render(){
   if(snapshot.preferences.source.startsWith('api:'))shell.append(element('p',label('configuration'),'muted'));
   const view=present(snapshot);const card=element('section',undefined,view.stale?'card stale':'card');card.setAttribute('aria-live','polite');
   card.append(element('span',snapshot.preferences.source==='codex'?label('codex'):snapshot.preferences.source==='claude'?label('claude'):`DeepSeek · ${label('api')}`,'eyebrow'),element('h2',view.name),element('div',view.amount,'amount'));
+  if(view.quotaWindow){
+   const selected=element('p',`${view.quotaWindow.label?modelLabel(snapshot,view.quotaWindow.label):view.name} · ${view.selected?periodLabel(Number(view.selected)):label('window')}`,'muted selected-reading');
+   if(view.quotaWindow.resetsAt)selected.append(element('span',` · ${label('reset')} ${new Date(view.quotaWindow.resetsAt*1000).toLocaleString(document.documentElement.lang)}`));
+   card.append(selected);
+  }
+  const models=modelChoices(snapshot);
+  if(models.length>1){
+   const group=element('fieldset',undefined,'model-picker');group.append(element('legend',label('model')));
+   for(const choice of models){
+    const option=element('label',undefined,'model-option');const radio=element('input');radio.type='radio';radio.name='model';radio.value=choice.value;radio.id=`model-${choice.value||'auto'}`;radio.checked=choice.value===view.model;
+    radio.onchange=()=>void run(async()=>{if(native){snapshot=await command<Snapshot>('select_model',{value:choice.value});}else{snapshot.preferences.model={...snapshot.preferences.model,[snapshot.preferences.source]:choice.value};}});
+    option.append(radio,element('span',choice.label));group.append(option);
+   }
+   card.append(group);
+  }
   const choices=displayChoices(snapshot);
   if(choices.length>1){
    const displayLabel=element('label',label('trayDisplay'));displayLabel.htmlFor='display';const display=element('select');display.id='display';

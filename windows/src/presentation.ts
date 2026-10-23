@@ -4,9 +4,10 @@ export interface Quota { plan:string|null;windows:{label?:string|null;remaining:
 export type Data = {kind:'balance';value:Wallet[]} | {kind:'quota';value:Quota};
 export interface Reading {data:Data|null;updated:number|null;error:AppError|null;refreshing:boolean}
 export interface Connection {id:string;name:string;harness:string;origin:string;supported:boolean}
-export interface Preferences {source:string;language:string;directory:string;autostart:boolean;display?:Record<string,string>}
+export interface Preferences {source:string;language:string;directory:string;autostart:boolean;display?:Record<string,string>;model?:Record<string,string>}
 export interface Snapshot {preferences:Preferences;connections:Connection[];reading:Reading;discoveryError:AppError|null;update:{version:string;name:string;url:string;checksumUrl:string}|null;updateStatus:string}
 const copy:Record<string,[string,string]>={
+ model:['Tray model','托盘模型'],autoModel:['Automatic · lowest remaining','自动 · 最低剩余'],
  subscription:['Subscription quota','套餐余量'],
  close:['Close','关闭'],
  title:['QuotaNest','余度 QuotaNest'], beta:['Windows beta','Windows 内测版'], source:['Display source','显示来源'],
@@ -37,10 +38,25 @@ const copy:Record<string,[string,string]>={
 };
 export function isChinese(s:Snapshot):boolean {return s.preferences.language==='zh' || (s.preferences.language==='system' && (typeof navigator!=='undefined' && navigator.language.startsWith('zh')));}
 export function text(s:Snapshot,key:string):string {return copy[key]?.[isChinese(s)?1:0]??copy.http_error[isChinese(s)?1:0];}
+export function modelLabel(s:Snapshot,value:string):string {return value==='claude'?text(s,'claudeGroup'):value==='sonnet'?'Sonnet':value==='opus'?'Opus':value;}
+export function modelChoices(s:Snapshot):{value:string;label:string}[] {
+ const data=s.reading.data;
+ if(data?.kind!=='quota')return [];
+ const models=[...new Set(data.value.windows.flatMap(w=>w.label?[w.label]:[]))].sort();
+ return models.length?[{value:'',label:text(s,'autoModel')},...models.map(value=>({value,label:modelLabel(s,value)}))]:[];
+}
+export function selectedModel(s:Snapshot):string {
+ const saved=s.preferences.model?.[s.preferences.source];
+ return modelChoices(s).find(o=>o.value===saved)?.value||'';
+}
+function modelWindows(s:Snapshot):Quota['windows'] {
+ const data=s.reading.data;const model=selectedModel(s);
+ return data?.kind==='quota'?data.value.windows.filter(w=>!model||w.label===model):[];
+}
 export function displayChoices(s:Snapshot):{value:string;label:string}[] {
  const data=s.reading.data;
  if(data?.kind==='balance')return data.value.map(w=>({value:w.currency,label:w.currency}));
- if(data?.kind==='quota')return [...new Set(data.value.windows.flatMap(w=>w.minutes==null?[]:[w.minutes]))].map(m=>({value:String(m),label:periodLabel(m)}));
+ if(data?.kind==='quota')return [...new Set(modelWindows(s).flatMap(w=>w.minutes==null?[]:[w.minutes]))].sort((a,b)=>a-b).map(m=>({value:String(m),label:periodLabel(m)}));
  return [];
 }
 export function periodLabel(minutes:number):string {return minutes>=1440?`${minutes/1440}d`:minutes>=60?`${minutes/60}h`:`${minutes}m`;}
@@ -51,12 +67,12 @@ export function present(s:Snapshot) {
  let amount='—';let quotaWindow:Quota['windows'][number]|undefined;
  if(data?.kind==='balance'){const wallet=data.value.find(w=>w.currency===selected)||data.value[0];if(wallet)amount=`${wallet.currency} ${wallet.total}`;}
  if(data?.kind==='quota'){
-  for(const w of data.value.windows.filter(w=>selected==null||String(w.minutes)===selected)){
-   if(w.remaining!=null&&(quotaWindow?.remaining==null||w.remaining<quotaWindow.remaining))quotaWindow=w;
+  for(const w of modelWindows(s).filter(w=>selected==null||String(w.minutes)===selected)){
+   if(!quotaWindow||(w.remaining!=null&&(quotaWindow.remaining==null||w.remaining<quotaWindow.remaining)))quotaWindow=w;
   }
   if(quotaWindow?.remaining!=null)amount=`${quotaWindow.remaining.toFixed(0)}%`;
  }
- return {name:s.preferences.source==='codex'?'Codex':s.preferences.source==='claude'?'Claude':c?.name||'DeepSeek',amount,selected,quotaWindow,stale:!!s.reading.error && !!data,updated:s.reading.updated};
+ return {name:s.preferences.source==='codex'?'Codex':s.preferences.source==='claude'?'Claude':c?.name||'DeepSeek',amount,selected,model:selectedModel(s),quotaWindow,stale:!!s.reading.error && !!data,updated:s.reading.updated};
 }
 export function demoSnapshot(source='api:claude|demo'):Snapshot {
  return {preferences:{source,language:'en',directory:'C:\\Users\\Demo\\.cc-switch',autostart:false},connections:[{id:'claude|demo',name:'DeepSeek',harness:'claude',origin:'https://api.deepseek.com',supported:true}],reading:{data:source==='claude'?{kind:'quota',value:{plan:'Max',windows:[{label:'claude',remaining:82,minutes:300,resetsAt:1792792800},{label:'claude',remaining:61,minutes:10080,resetsAt:null},{label:'sonnet',remaining:93,minutes:10080,resetsAt:null},{label:'opus',remaining:39,minutes:10080,resetsAt:null}]}}:source==='codex'?{kind:'quota',value:{plan:'Plus',windows:[{remaining:76,minutes:300,resetsAt:1792749600},{remaining:62,minutes:10080,resetsAt:1793318400}]}}:{kind:'balance',value:[{currency:'CNY',total:'18.60',granted:'3.60',toppedUp:'15.00'},{currency:'USD',total:'3.20',granted:'0.20',toppedUp:'3.00'}]},updated:1792731600,error:null,refreshing:false},discoveryError:null,update:null,updateStatus:'idle'};

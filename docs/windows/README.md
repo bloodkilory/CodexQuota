@@ -6,12 +6,12 @@ Windows 客户端与现有 Mac 版独立，面向 **Windows 11 x64**。本轮不
 
 ## Install / 安装
 
-Download `QuotaNest-windows-x64-beta` from the successful **Windows beta** Actions run. Extract the ZIP and check the installer against its adjacent `SHA256SUMS.txt`. Run `QuotaNest-1.9.0-beta.4-windows-x64-setup.exe`. Installation is per user and does not require writing to Program Files. Beta artifacts are not official Releases and are never delivered by the Mac updater.
+Download `QuotaNest-windows-x64-beta` from the successful **Windows beta** Actions run. Extract the ZIP and check the installer against its adjacent `SHA256SUMS.txt`. Run `QuotaNest-1.9.0-beta.5-windows-x64-setup.exe`. Installation is per user and does not require writing to Program Files. Beta artifacts are not official Releases and are never delivered by the Mac updater.
 
 从成功的 **Windows beta** Actions 下载上述 artifact，解压后核对 SHA-256，再运行安装程序。按当前用户安装。内测包没有 Windows 代码签名证书，系统可能显示 SmartScreen 提示；不自动关闭或绕过它。内测附件不进入 Mac 正式更新渠道。
 
 ```powershell
-Get-FileHash .\QuotaNest-1.9.0-beta.4-windows-x64-setup.exe -Algorithm SHA256
+Get-FileHash .\QuotaNest-1.9.0-beta.5-windows-x64-setup.exe -Algorithm SHA256
 ```
 
 ## Use / 使用
@@ -22,7 +22,7 @@ Get-FileHash .\QuotaNest-1.9.0-beta.4-windows-x64-setup.exe -Algorithm SHA256
 - **DeepSeek:** Settings → CC Switch data directory → Read saved connections; then choose an official DeepSeek connection in the single Display source selector. Existing schema 18–20 Claude Code/Codex configurations are supported. 不手动添加 Key，不改 CC Switch 的任何配置，不声称配置就是实际会话路由。
 - Only `https://api.deepseek.com/user/balance` is queried, using the selected saved official credential. Third-party/localhost proxy endpoints are recognized as unsupported rather than sent a balance request. Keys stay in the Rust backend and are not sent to the WebView.
 - Startup/manual/every-minute refresh; transient errors keep a marked stale reading. Credential/source changes clear old balances; unknown is never shown as zero.
-- **Tray reading / 托盘读数:** choose quota period or wallet currency in the detail card. Choices are remembered per source; same-period quota groups use the lowest remaining percentage.
+- **Tray reading / 托盘读数:** click the tray icon, then **Back / 返回** to the detail card. Choose **Automatic / 自动**, Claude total, Sonnet, or Opus with radio buttons, plus the quota period (or wallet currency). Automatic keeps the lowest remaining percentage in the chosen period. Model and period choices are remembered independently per source across refreshes and restarts. If a model has no selected period, its shortest available period is shown; a missing model visibly falls back to Automatic while retaining the saved preference. Unknown selected-model quota stays unknown. / 点击托盘后点返回，在详情中单选显示模型；周期选择保留，数字、进度环、重置时间来自同一模型与周期。
 - Language: follow system / English / 中文. Settings include launch at sign-in and manual update. Update checks run on startup and click only. Only formal GitHub Releases with the exact Windows x64 installer and matching SHA-256 are accepted; current Mac-only Releases yield no Windows update.
 
 ## Verification / 验证边界
