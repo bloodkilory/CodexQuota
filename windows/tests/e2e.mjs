@@ -18,10 +18,16 @@ async function request(method,route,body){const r=await fetch(`http://127.0.0.1:
 async function wait(action){let last;for(let n=0;n<80;n++){try{return await action();}catch(e){last=e;await new Promise(r=>setTimeout(r,250));}}throw last;}
 async function find(css){const v=await request('POST',`/session/${session}/element`,{using:'css selector',value:css});return v['element-6066-11e4-a52e-4f735466cecf'];}
 async function execute(script,args=[]){return request('POST',`/session/${session}/execute/sync`,{script,args});}
-async function click(css){const id=await find(css);await request('POST',`/session/${session}/element/${id}/click`,{});}
+async function click(css){
+ // A completed refresh can replace the DOM between element lookup and pointer dispatch.
+ for(let attempt=0;;attempt++){
+  try{const id=await find(css);await request('POST',`/session/${session}/element/${id}/click`,{});return;}
+  catch(error){if(attempt>=2||!String(error).includes('stale element reference'))throw error;}
+ }
+}
 async function select(css,value){
  // Native <select> interactions use WebDriver's element click, including options.
- const id=await find(`${css} option[value="${value}"]`);await request('POST',`/session/${session}/element/${id}/click`,{});
+ await click(`${css} option[value="${value}"]`);
 }
 async function screenshot(name){const png=await request('GET',`/session/${session}/screenshot`);await writeFile(path.join(resultDir,`${name}.png`),Buffer.from(png,'base64'));}
 try{
