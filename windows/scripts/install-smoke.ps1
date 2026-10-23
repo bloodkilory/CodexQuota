@@ -34,8 +34,23 @@ $app.WaitForExit()
 Write-Host 'PASS installed native application starts independently'
 # Run the actual installed binary in fixture mode through WebView2.
 $env:QUOTANEST_TEST_EXE = $exe
-npm run e2e
-if ($LASTEXITCODE -ne 0) { throw 'Installed GUI smoke failed' }
+# WebView2 150+ ignores environment overrides in elevated CI hosts.
+# Scope the supported machine policy to this fixture app and always remove it.
+# https://github.com/MicrosoftEdge/WebView2Feedback/issues/5645
+$policy = 'HKLM:\Software\Policies\Microsoft\Edge\WebView2'
+$argsKey = "$policy\AdditionalBrowserArguments"
+$dataKey = "$policy\UserDataFolder"
+New-Item -Path $argsKey -Force | Out-Null
+New-Item -Path $dataKey -Force | Out-Null
+try {
+    New-ItemProperty -Path $argsKey -Name 'QuotaNest.exe' -Value '--remote-debugging-port=9222' -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $dataKey -Name 'QuotaNest.exe' -Value (Join-Path $env:RUNNER_TEMP 'QuotaNest WebDriver Profile') -PropertyType String -Force | Out-Null
+    npm run e2e
+    if ($LASTEXITCODE -ne 0) { throw 'Installed GUI smoke failed' }
+} finally {
+    Remove-ItemProperty -Path $argsKey -Name 'QuotaNest.exe' -ErrorAction SilentlyContinue
+    Remove-ItemProperty -Path $dataKey -Name 'QuotaNest.exe' -ErrorAction SilentlyContinue
+}
 Get-Process QuotaNest -ErrorAction SilentlyContinue | Stop-Process -Force
 $uninstaller = Get-ChildItem $target -Filter '*uninstall*.exe' | Select-Object -First 1
 if (-not $uninstaller) { throw 'Uninstaller missing' }

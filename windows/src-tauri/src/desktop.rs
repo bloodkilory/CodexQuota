@@ -332,7 +332,6 @@ pub fn run() {
 
         .invoke_handler(tauri::generate_handler![snapshot,refresh,select_source,discover,save_preferences,check_update,install_update,quit])
         .setup(|app|{
-            if std::env::args().any(|a|a=="--demo") { eprintln!("QuotaNest demo: setup entered"); }
             let home=std::env::var_os(if cfg!(windows){"USERPROFILE"}else{"HOME"}).map(PathBuf::from).ok_or("home missing")?;
             let preferences=app.path().app_config_dir()?.join("preferences.json");
             let demo=std::env::args().any(|a|a=="--demo");
