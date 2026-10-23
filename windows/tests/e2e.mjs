@@ -1,6 +1,6 @@
 // Real Tauri/WebView2 GUI checks through the standard WebDriver HTTP protocol.
 // The --demo application argument keeps this suite independent of user credentials.
-import {spawn} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {mkdir,writeFile,mkdtemp} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
@@ -46,5 +46,5 @@ try{
  await screenshot('windows-settings-zh');
  await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','language-switch','settings-update-check'],credentials:'synthetic only'},null,2));
  console.log('PASS native Windows WebView2 GUI: source switch, language, balances, quotas, settings');
-}catch(error){if(session)await screenshot('failure').catch(()=>{});throw error;}
+}catch(error){spawnSync('powershell.exe',['-NoProfile','-File','scripts/capture-diagnostics.ps1'],{stdio:'inherit'});if(session)await screenshot('failure').catch(()=>{});throw error;}
 finally{if(session)await request('DELETE',`/session/${session}`).catch(()=>{});driver.kill();app.kill();await writeFile(path.join(resultDir,'native-app.log'),appLog);await writeFile(path.join(resultDir,'driver.log'),log);}
