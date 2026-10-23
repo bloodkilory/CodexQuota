@@ -81,12 +81,13 @@ try{
  let bounds=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");await writeFile(path.join(resultDir,'hover-bounds.json'),JSON.stringify(bounds));
  if(!bounds.visible){native('Click',{X:rect.x+rect.w/2,Y:rect.y+rect.h/2});await writeFile(path.join(resultDir,'tray-click-diagnostic.json'),JSON.stringify(await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")));}
  assert.equal(bounds.visible,true,'hover card should appear');
+ assert.ok(bounds.card.w<=260&&bounds.card.h<=160,'hover card must match the compact target');
  assert.ok(bounds.card.y+bounds.card.h<=rect.y||bounds.card.y>=rect.y+rect.h,'hover card must not cover the tray icon');
  const left=Math.min(bounds.card.x,rect.x)-8,top=Math.min(bounds.card.y,rect.y)-8;
  native('Capture',{X:left,Y:top,W:Math.max(bounds.card.x+bounds.card.w,rect.x+rect.w)-left+8,H:Math.max(bounds.card.y+bounds.card.h,rect.y+rect.h)-top+8,Name:'windows-tray-claude'});
  native('Capture',{X:rect.x,Y:rect.y,W:rect.w,H:rect.h,Name:'windows-tray-icon'});
  const focus=JSON.parse((await readFile(path.join(resultDir,'native-focus.json'),'utf8')).replace(/^\uFEFF/,''));assert.notEqual(focus.foreground,'QuotaNest Usage','hover must not steal focus');
- native('Move',{X:bounds.card.x+bounds.card.w/2,Y:bounds.card.y+80});
+ native('Move',{X:bounds.card.x+bounds.card.w/2,Y:bounds.card.y+40});
  assert.equal((await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")).visible,true,'moving into card keeps it visible');
  native('Move',{X:100,Y:100});
  assert.equal((await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")).visible,false,'moving away dismisses card');
@@ -94,6 +95,15 @@ try{
  await wait(()=>find('#language'));assert.equal((await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")).visible,false);
  assert.ok(await execute('return document.querySelector("#close").getBoundingClientRect().top >= 0'),'settings reopens at the top');
  await screenshot('windows-tray-click-settings');
+ // Check the rendered hover WebView too: a small window must retain all rows without clipping.
+ for(const handle of await request('GET',`/session/${session}/window/handles`)){
+  await request('POST',`/session/${session}/window`,{handle});
+  if(!await execute('return !!document.querySelector(".hover-shell")'))continue;
+  const layout=await execute('const shell=document.querySelector(".hover-shell");return {width:innerWidth,height:innerHeight,contentHeight:shell.getBoundingClientRect().height,scrollWidth:document.querySelector("#app").scrollWidth,rows:document.querySelectorAll(".hover-row").length,text:shell.innerText}');
+  await writeFile(path.join(resultDir,'compact-layout.json'),JSON.stringify(layout));
+  assert.equal(layout.width,240);assert.ok(layout.contentHeight<=layout.height,'all compact quota rows fit vertically');assert.ok(layout.scrollWidth<=layout.width,'compact hover has no horizontal clipping');assert.equal(layout.rows,4);assert.match(layout.text,/Sonnet/);assert.match(layout.text,/Opus/);
+  break;
+ }
  await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','period-selection-retained','currency-selection','language-switch','settings-update-check','native-tray-hover','hover-preserves-focus','hover-card-retention','tray-click-settings'],credentials:'synthetic only'},null,2));
  console.log('PASS native Windows WebView2 GUI: source switch, language, balances, quotas, settings');
 }catch(error){spawnSync('powershell.exe',['-NoProfile','-File','scripts/capture-diagnostics.ps1'],{stdio:'inherit'});if(session)await screenshot('failure').catch(()=>{});throw error;}

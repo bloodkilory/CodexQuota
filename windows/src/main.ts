@@ -35,22 +35,27 @@ function sourcePicker(shell:HTMLElement){
 }
 function renderHover(){
  const view=present(snapshot);const shell=element('main',undefined,'hover-shell');const head=element('header');
- const title=element('div');title.append(element('span',view.name,'hover-name'),element('p',snapshot.preferences.source.startsWith('api:')?label('api'):label('subscription'),'muted'));
- head.append(title,element('span',view.selected&&/^\d+$/.test(view.selected)?periodLabel(Number(view.selected)):view.selected||'','period-badge'));shell.append(head);
- const amount=element('div',view.amount,'hover-amount');shell.append(amount);
+ const title=element('span',view.name,'hover-name');title.title=view.name;
+ const selected=element('div',undefined,'hover-selected');
+ if(view.selected&&/^\d+$/.test(view.selected))selected.append(element('span',periodLabel(Number(view.selected)),'period-badge'));
+ selected.append(element('strong',view.amount,'hover-amount'));head.append(title,selected);shell.append(head);
  const data=snapshot.reading.data;
  if(data?.kind==='quota')for(const w of data.value.windows){
   const row=element('section',undefined,'hover-row');const line=element('div',undefined,'hover-line');
   const name=w.label&&w.label!=='claude'?label(w.label):w.minutes?periodLabel(w.minutes):label('window');
-  line.append(element('span',name),element('strong',w.remaining==null?'—':`${w.remaining.toFixed(0)}%`));row.append(line);
-  if(w.remaining!=null){const progress=element('progress');progress.max=100;progress.value=w.remaining;row.append(progress);}
-  if(w.resetsAt)row.append(element('div',`${label('reset')} ${new Date(w.resetsAt*1000).toLocaleString(document.documentElement.lang)}`,'hover-reset'));
+  line.append(element('span',name));
+  const progress=element('progress');progress.max=100;progress.value=w.remaining??0;progress.setAttribute('aria-label',name);
+  if(w.remaining==null)progress.className='unknown';line.append(progress,element('strong',w.remaining==null?'—':`${w.remaining.toFixed(0)}%`));row.append(line);
+  row.title=w.resetsAt?`${name} · ${label('reset')} ${new Date(w.resetsAt*1000).toLocaleString(document.documentElement.lang)}`:name;
   shell.append(row);
  }
- if(data?.kind==='balance')for(const w of data.value){const row=element('section',undefined,'hover-row');row.append(element('div',`${w.currency} ${w.total}`,'hover-line'),element('p',`${label('paid')} ${w.toppedUp} · ${label('granted')} ${w.granted}`,'muted'));shell.append(row);}
+ if(data?.kind==='balance')for(const w of data.value){const row=element('section',undefined,'hover-row');row.append(element('div',`${w.currency} ${w.total}`,'hover-wallet'),element('p',`${label('paid')} ${w.toppedUp} · ${label('granted')} ${w.granted}`,'muted'));shell.append(row);}
  if(view.stale)shell.append(element('p',label('stale'),'error'));
  if(snapshot.reading.error)shell.append(element('p',label(snapshot.reading.error.code),'error'));
- shell.append(element('footer',snapshot.reading.updated?`${label('updated')} ${new Date(snapshot.reading.updated*1000).toLocaleTimeString(document.documentElement.lang)}`:label('never'),'muted'));
+ const selectedWindow=data?.kind==='quota'?data.value.windows.find(w=>String(w.minutes)===view.selected):undefined;
+ const clock=(seconds:number)=>new Date(seconds*1000).toLocaleTimeString(document.documentElement.lang,{hour:'2-digit',minute:'2-digit',hour12:false});
+ const updated=snapshot.reading.updated?`${label('updated')} ${clock(snapshot.reading.updated)}`:label('never');
+ shell.append(element('footer',`${selectedWindow?.resetsAt?`${label('reset')} ${clock(selectedWindow.resetsAt)} · `:''}${updated}`,'muted'));
  root.append(shell);
 }
 function render(){

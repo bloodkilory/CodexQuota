@@ -233,7 +233,7 @@ fn place(window: &WebviewWindow, anchor: BoxRect) {
         let work = monitor.work_area();
         let scale = monitor.scale_factor();
         let (width, height) = if window.label() == "hover" {
-            (340., 470.)
+            (240., 110.)
         } else {
             (380., 650.)
         };
@@ -241,7 +241,10 @@ fn place(window: &WebviewWindow, anchor: BoxRect) {
             (width * scale).min(work.size.width as f64),
             (height * scale).min(work.size.height as f64),
         );
-        let _ = window.set_size(tauri::PhysicalSize::new(size.0 as u32, size.1 as u32));
+        let target = tauri::PhysicalSize::new(size.0 as u32, size.1 as u32);
+        if window.inner_size().ok() != Some(target) {
+            let _ = window.set_size(target);
+        }
         let outer = window
             .outer_size()
             .map(|s| (s.width as f64, s.height as f64))

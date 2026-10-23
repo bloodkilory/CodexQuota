@@ -1,10 +1,10 @@
 # Windows / macOS feature parity · 功能核对
 
-Compared against Mac v1.8.0 (`37bdf5f`) and Windows v1.9.0-beta.3. “Implemented” means code plus synthetic automated tests; it does not certify real Windows accounts. Mac source/build/release workflow is unchanged.
+Compared against Mac v1.8.0 (`37bdf5f`) and Windows v1.9.0-beta.4. “Implemented” means code plus synthetic automated tests; it does not certify real Windows accounts. Mac source/build/release workflow is unchanged.
 
-核对基准：Mac v1.8.0 与 Windows v1.9.0-beta.3。已实现与真实账号验收分开；本轮保持 Mac 版源代码和发布流程不变。
+核对基准：Mac v1.8.0 与 Windows v1.9.0-beta.4。已实现与真实账号验收分开；本轮保持 Mac 版源代码和发布流程不变。
 
-| Feature / 功能 | Mac | Windows beta.2 | Result / 差异 |
+| Feature / 功能 | Mac | Windows beta.4 | Result / 差异 |
 | --- | --- | --- | --- |
 | Codex official main quota / 官方主额度 | Yes | Yes, native codex.exe | Same main-bucket semantics; Windows detailed secondary model buckets not yet displayed / 主额度一致，Windows 尚未展示额外模型桶 |
 | Claude official subscription / 官方套餐 | Yes | Added | Existing subscription OAuth; 5h, 7d, Sonnet, Opus; reset time / 本轮新增各额度组、重置时间 |
