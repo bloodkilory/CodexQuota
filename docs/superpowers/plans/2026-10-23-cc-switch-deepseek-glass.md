@@ -31,29 +31,29 @@
 **Files:** Create `Sources/CCSwitchStore.swift`, `Sources/DeepSeekBalance.swift`, `Tests/ConnectedAccounts/main.swift`；Modify `scripts/test.sh`。
 **Interfaces:** `CCSwitchStore.discover() -> [CCSwitchConnection]`；`credential(for:) -> CCSwitchCredential`；`DeepSeekBalance.decode(Data)`，金额 Decimal；连接发现对象无凭据。
 
-- [ ] 写失败测试：临时 SQLite/配置，Claude / Codex endpoint、proxy route 与默认项分开、官方/第三方识别、busy/缺库/不兼容、来源只读、不持久化秘密；余额完整/缺失/负数/非有限/多币种。
-- [ ] 编译接口与最小骨架后运行失败断言，再实现只读参数绑定查询与金额解析；验证通过。
-- [ ] 集成 test.sh，记录范围与测试证据并提交。
+- [x] 写失败测试：临时 SQLite/配置，Claude / Codex endpoint、proxy route 与默认项分开、官方/第三方识别、busy/缺库/不兼容、来源只读、不持久化秘密；余额完整/缺失/负数/非有限/多币种。
+- [x] 编译接口与最小骨架后运行失败断言，再实现只读参数绑定查询与金额解析；验证通过。
+- [x] 集成 test.sh，记录范围与测试证据并提交。
 
 ### Task 2: 查询与状态隔离
 
 **Files:** Create `Sources/DeepSeekBalanceClient.swift`, `Sources/ConnectedAccountState.swift`；Extend `Tests/ConnectedAccounts/main.swift`。
 **Interfaces:** `DeepSeekBalanceClient.fetch(connection:completion:)`；`shutdown()`；状态按 connectionID + generation 应用结果，凭据仅在查询内存中解析。
 
-- [ ] 先写失败测试：固定 GET `/user/balance`、Bearer 从原配置解析、拒绝重定向、401/429/500、1MiB 上限、取消、连接变更、单次回调、30 秒预算与去重调度。
-- [ ] 使用 URLProtocol 合成响应测试真实 URLSession 传输；实现有界流式传输与至多两并发，纯状态用测试覆盖过期数据与代际隔离。
-- [ ] 运行相关测试、完整套件并提交。
+- [x] 先写失败测试：固定 GET `/user/balance`、Bearer 从原配置解析、拒绝重定向、401/429/500、1MiB 上限、取消、连接变更、单次回调、30 秒预算与去重调度。
+- [x] 使用 URLProtocol 合成响应测试真实 URLSession 传输；实现有界流式传输与至多两并发，纯状态用测试覆盖过期数据与代际隔离。
+- [x] 运行相关测试、完整套件并提交。
 
 ### Task 3: 原生玻璃与账户视图
 
 **Files:** Create `Sources/GlassAppearance.swift`, `Sources/ConnectedAccountsView.swift`；Modify `Sources/AppController.swift`, `Sources/CapsuleView.swift`, `Sources/ProviderMark.swift`, `Sources/main.swift`, `Tests/Capsule/main.swift`, `scripts/build.sh`, README、RELEASE_NOTES。
 **Interfaces:** 来源连接/读取状态交给 AppController；独立界面构造器消费脱敏模型与闭包；旧平台继续现有查询路径。
 
-- [ ] 先使旧黑底像素断言在玻璃外观需求下失败，改为验证比例边界、64 点点击分区、深浅/减少透明度和金额无进度。
-- [ ] 实现账户/工具/原有平台入口、来源连接选择、固定到菜单栏、金额明细与更新时间；保持一轮查询与缓存。
-- [ ] 构建截图/离线交互检查，不使用真实金额截图；声明 macOS 15 兼容、26+ 原生分支未实机验证。
-- [ ] 版本标记本地 1.8.0 / 12，完整套件与通用构建，独立代码审阅，修复后安装到 ~/Applications。
-- [ ] 从安装版验证真实 DeepSeek 读数、两个 60 秒调度、登录启动与原有 Codex；更新本地交接，保留本地提交，不推送/发布。
+- [x] 先使旧黑底像素断言在玻璃外观需求下失败，改为验证比例边界、64 点点击分区、深浅/减少透明度和金额无进度。
+- [x] 实现账户/工具/原有平台入口、来源连接选择、固定到菜单栏、金额明细与更新时间；保持一轮查询与缓存。
+- [x] 构建截图/离线交互检查，不使用真实金额截图；声明 macOS 15 兼容、26+ 原生分支未实机验证。
+- [x] 版本标记本地 1.8.0 / 12，完整套件与通用构建，独立代码审阅，修复后安装到 ~/Applications。
+- [x] 从安装版验证真实 DeepSeek 读数、两个 60 秒调度、登录启动与原有 Codex；更新本地交接，保留本地提交，不推送/发布。
 
 ## 范围说明
 
@@ -81,3 +81,13 @@ Kimi、GLM、Kilo、Kiro、Grok 的新额度适配、任意 JS、自动切换模
 - 中英文真实 AppKit 视图渲染与按钮动作、顶部单一选择器可见位置、长英文布局检查；验证选择 Codex→API→Claude 同时改变详情与菜单栏显示状态、来源删除后能从选择器回到官方平台，设置往返/连接新服务不暗改显示来源。将所有测试加入 scripts/test.sh，旧测试若依赖中文，显式设置测试语言，不能依赖宿主语言。
 - 完整 ./scripts/test.sh 通过，并编译开发主程序以证明 AppController/所有源文件接通；不要跑通用构建或安装，由控制者审查后执行。
 - 本任务改动本地提交；报告包含改动、测试命令结果、边界。报告写本任务 workspace，不要输出凭据或真实金额。
+
+
+## 最终验收记录
+
+- Task 1–3 完成后按用户反馈由 Task 4 的统一来源选择器替代账户/工具/固定模式；最终版本为本地 1.8.0 / build 13。功能提交 74ade27，未推送、合并 main 或发布。
+- 完整 scripts/test.sh 327 条 PASS；最后标题兜底修复后，原生双语相关四组用例再次通过。独立最终审查与修复复审全部关闭。
+- 最终主程序/更新助手的 Intel + Apple Silicon 构建与严格签名检查通过；最终安装 bundle 的真实中英文资源、格式化文本验证通过。
+- 安装版 DeepSeek 启动与两轮定时查询于 2026-10-23 13:57:25、13:58:25、13:59:25（Asia/Shanghai）成功，60 秒间隔，无错误；Codex 查询、登录启动及既有偏好保留。
+- macOS 15.7.7 本机验证；macOS 26 原生玻璃分支、真实管理员更新和国内五个实验适配真实账号不在本次验收结论内。
+- 中文小红书更新文案、英文 X 首次介绍文案已按本地预览口径生成，未发布；GitHub About 已在线改为中英双语，两份 README 已在本分支更新。
