@@ -8,7 +8,7 @@ swiftc -swift-version 5 Sources/QuotaModels.swift Sources/CodexClient.swift Test
 .build/protocol-tests
 swiftc Sources/QuotaModels.swift Sources/ProviderState.swift Sources/ProviderPayload.swift Tests/Providers/main.swift -o .build/provider-tests
 .build/provider-tests
-swiftc -swift-version 5 Sources/CCSwitchStore.swift Sources/DeepSeekBalance.swift Tests/ConnectedAccounts/main.swift -o .build/connected-account-tests
+swiftc -swift-version 5 Sources/CCSwitchStore.swift Sources/DeepSeekBalance.swift Sources/DeepSeekBalanceClient.swift Sources/ConnectedAccountState.swift Tests/ConnectedAccounts/main.swift -o .build/connected-account-tests
 .build/connected-account-tests
 swiftc -swift-version 5 Sources/QuotaModels.swift Sources/CodexClient.swift Sources/BoundedCommand.swift Tests/Command/main.swift -o .build/command-tests
 .build/command-tests
