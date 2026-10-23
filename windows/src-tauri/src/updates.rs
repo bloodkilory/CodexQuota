@@ -157,7 +157,14 @@ fn checksum_rejects_wrong_missing_and_duplicate_entries() {
     let name = "QuotaNest-1.9.0-windows-x64-setup.exe";
     let bytes = b"synthetic installer";
     let manifest = format!("{:x}  {name}\n", Sha256::digest(bytes));
+    let mac_entry = format!(
+        "{:x}  QuotaNest-1.9.0.dmg\n",
+        Sha256::digest(b"synthetic dmg")
+    );
     assert!(verify(bytes, &manifest, name).is_ok());
+    assert!(verify(bytes, &(mac_entry.clone() + &manifest), name).is_ok());
+    assert!(verify(bytes, &(manifest.clone() + &mac_entry), name).is_ok());
+    assert!(verify(bytes, &mac_entry, name).is_err());
     assert!(verify(b"tampered", &manifest, name).is_err());
     assert!(verify(bytes, &(manifest.clone() + &manifest), name).is_err());
 }

@@ -97,10 +97,14 @@ fn codex_uses_primary_bucket_and_unknown_does_not_become_zero() {
 }
 #[test]
 fn release_never_selects_beta_mac_or_external_installer() {
-    let release = json!({"tag_name":"v1.9.0","draft":false,"prerelease":false,"assets":[{"name":"QuotaNest-1.9.0-windows-x64-setup.exe","browser_download_url":"https://github.com/bloodkilory/QuotaNest/releases/download/v1.9.0/QuotaNest-1.9.0-windows-x64-setup.exe","size":1000},{"name":"SHA256SUMS.txt","browser_download_url":"https://github.com/bloodkilory/QuotaNest/releases/download/v1.9.0/SHA256SUMS.txt","size":96}]});
-    assert!(updates::select_release(&release, "1.9.0-beta.1")
+    let release = json!({"tag_name":"v1.9.0","draft":false,"prerelease":false,"assets":[{"name":"QuotaNest-1.9.0-windows-x64-setup.exe","browser_download_url":"https://github.com/bloodkilory/QuotaNest/releases/download/v1.9.0/QuotaNest-1.9.0-windows-x64-setup.exe","size":1000},{"name":"SHA256SUMS.txt","browser_download_url":"https://github.com/bloodkilory/QuotaNest/releases/download/v1.9.0/SHA256SUMS.txt","size":192},{"name":"QuotaNest-1.9.0.dmg","browser_download_url":"https://github.com/bloodkilory/QuotaNest/releases/download/v1.9.0/QuotaNest-1.9.0.dmg","size":2000}]});
+    let selected = updates::select_release(&release, "1.9.0-beta.1")
         .unwrap()
-        .is_some());
+        .unwrap();
+    assert_eq!(selected.name, "QuotaNest-1.9.0-windows-x64-setup.exe");
+    assert!(updates::select_release(&release, "1.9.0")
+        .unwrap()
+        .is_none());
     let mut beta = release.clone();
     beta["prerelease"] = json!(true);
     assert!(updates::select_release(&beta, "1.8.0").unwrap().is_none());

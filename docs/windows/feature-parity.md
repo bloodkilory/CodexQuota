@@ -1,10 +1,10 @@
 # Windows / macOS feature parity · 功能核对
 
-Compared against Mac v1.8.0 (`37bdf5f`) and Windows v1.9.0-beta.5. “Implemented” means code plus synthetic automated tests; it does not certify real Windows accounts. Mac source/build/release workflow is unchanged.
+Compared against Mac v1.8.0 (`37bdf5f`) and Windows v1.9.0. “Implemented” means code plus synthetic automated tests; it does not certify real Windows accounts. The Mac comparison baseline remains v1.8.0.
 
-核对基准：Mac v1.8.0 与 Windows v1.9.0-beta.5。已实现与真实账号验收分开；本轮保持 Mac 版源代码和发布流程不变。
+核对基准：Mac v1.8.0 与 Windows v1.9.0。已实现与真实账号验收分开；Mac 对比基准仍为 v1.8.0。
 
-| Feature / 功能 | Mac | Windows beta.5 | Result / 差异 |
+| Feature / 功能 | Mac | Windows v1.9.0 | Result / 差异 |
 | --- | --- | --- | --- |
 | Codex official model quotas / 官方模型额度 | Yes | Yes, native codex.exe | All returned model buckets are selectable; Automatic keeps main quota / 全部返回模型可选，自动保留主额度口径 |
 | Claude official subscription / 官方套餐 | Yes | Added | Existing subscription OAuth; 5h, 7d, Sonnet, Opus; reset time / 本轮新增各额度组、重置时间 |
@@ -40,7 +40,7 @@ The following sources exist in Mac and are **not implemented on Windows**. They 
 | Qoder (experimental) | `Sources/QoderQuotaClient.swift` | Windows npm/Node discovery and exact verified WASM helper compatibility; native build unsupported in Mac too / npm 路径、WASM 版本兼容性 |
 | CodeBuddy (experimental) | `Sources/CodeBuddyQuotaClient.swift` | Port VS Code Windows secret storage/DPAPI; Mac Keychain/PBKDF decryption cannot be copied / Windows VS Code 凭据解密 |
 
-## Beta acceptance / 内测验收
+## Release validation / 发布验证
 
 CI builds/installs the actual x64 NSIS package, upgrades with saved preferences and sign-in registration, drives the installed WebView2, verifies Claude/Codex/API source separation, model radio selection, model/period/currency retention, native Sonnet/Opus tray readings, Chinese/English and uninstall. Claude HTTP tests assert official headers, retry/auth/redirect/429 behavior using synthetic OAuth only.
 
