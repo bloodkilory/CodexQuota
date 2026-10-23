@@ -81,6 +81,7 @@ try{
  let bounds=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");await writeFile(path.join(resultDir,'hover-bounds.json'),JSON.stringify(bounds));
  if(!bounds.visible){native('Click',{X:rect.x+rect.w/2,Y:rect.y+rect.h/2});await writeFile(path.join(resultDir,'tray-click-diagnostic.json'),JSON.stringify(await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")));}
  assert.equal(bounds.visible,true,'hover card should appear');
+ assert.ok(bounds.card.y+bounds.card.h<=rect.y||bounds.card.y>=rect.y+rect.h,'hover card must not cover the tray icon');
  const left=Math.min(bounds.card.x,rect.x)-8,top=Math.min(bounds.card.y,rect.y)-8;
  native('Capture',{X:left,Y:top,W:Math.max(bounds.card.x+bounds.card.w,rect.x+rect.w)-left+8,H:Math.max(bounds.card.y+bounds.card.h,rect.y+rect.h)-top+8,Name:'windows-tray-claude'});
  native('Capture',{X:rect.x,Y:rect.y,W:rect.w,H:rect.h,Name:'windows-tray-icon'});
@@ -91,6 +92,7 @@ try{
  assert.equal((await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")).visible,false,'moving away dismisses card');
  native('Click',{X:rect.x+rect.w/2,Y:rect.y+rect.h/2});
  await wait(()=>find('#language'));assert.equal((await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")).visible,false);
+ assert.ok(await execute('return document.querySelector("#close").getBoundingClientRect().top >= 0'),'settings reopens at the top');
  await screenshot('windows-tray-click-settings');
  await writeFile(path.join(resultDir,'result.json'),JSON.stringify({passed:true,checks:['native-launch','deepseek-demo','source-switch','codex-demo','claude-demo','claude-model-groups','period-selection-retained','currency-selection','language-switch','settings-update-check','native-tray-hover','hover-preserves-focus','hover-card-retention','tray-click-settings'],credentials:'synthetic only'},null,2));
  console.log('PASS native Windows WebView2 GUI: source switch, language, balances, quotas, settings');

@@ -112,7 +112,7 @@ function render(){
 async function syncAfter(){snapshot=await command<Snapshot>('snapshot');}
 async function start(){if(native){try{snapshot=await command<Snapshot>('snapshot');}catch{localError='http_error';}}render();setInterval(()=>void sync().catch(()=>{}),1000);}
 if(native){
- void listen('open-settings',()=>void run(async()=>{snapshot=await command<Snapshot>('snapshot');settings=true;preferencesEditing=true;}));
+ void listen('open-settings',()=>void run(async()=>{snapshot=await command<Snapshot>('snapshot');settings=true;preferencesEditing=true;}).then(()=>{root.scrollTop=0;document.getElementById('close')?.focus({preventScroll:true});}));
  void listen('snapshot-changed',()=>{if(hover)void sync().catch(()=>{});});
 }
 void start();

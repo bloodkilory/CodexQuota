@@ -242,6 +242,10 @@ fn place(window: &WebviewWindow, anchor: BoxRect) {
             (height * scale).min(work.size.height as f64),
         );
         let _ = window.set_size(tauri::PhysicalSize::new(size.0 as u32, size.1 as u32));
+        let outer = window
+            .outer_size()
+            .map(|s| (s.width as f64, s.height as f64))
+            .unwrap_or(size);
         let (x, y) = tray_visual::position(
             anchor,
             BoxRect {
@@ -250,7 +254,7 @@ fn place(window: &WebviewWindow, anchor: BoxRect) {
                 w: work.size.width as f64,
                 h: work.size.height as f64,
             },
-            size,
+            outer,
         );
         let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
     }
