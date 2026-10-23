@@ -115,14 +115,32 @@ for language in [InterfaceLanguage.chinese,.english] {
     assert(picker(content).convert(picker(content).bounds,to:content).maxY > height - 130)
     let gear = descendants(content).first { $0.identifier?.rawValue == "settings" }!
     let title = descendants(content).compactMap { $0 as? NSTextField }.first { $0.stringValue == L("余度 QuotaNest") }!
-    let gearBounds = gear.convert(gear.bounds,to:content), titleBounds = title.convert(title.bounds,to:content)
-    assert(gearBounds.minX > titleBounds.maxX && abs(gearBounds.midY - titleBounds.midY) < 1,"settings sits to the right of the title on the same row")
-    assert(gearBounds.maxX > 210 && gearBounds.maxY > height - 35,"settings stays in the top-right corner")
     let refreshID = selection.accountID == nil ? "refresh-official" : "refresh-account"
     let refreshIcon = descendants(content).first { $0.identifier?.rawValue == refreshID } as! NSButton
-    let refreshBounds = refreshIcon.convert(refreshIcon.bounds,to:content)
     assert(refreshIcon.title.isEmpty && refreshIcon.image != nil && refreshIcon.toolTip == L("立即刷新"))
-    assert(refreshBounds.maxX < gearBounds.minX && abs(refreshBounds.midY - gearBounds.midY) < 1,"refresh sits immediately left of settings in the title row")
+    func checkHeaderLayout(_ phase: String) {
+        // Auto Layout aligns these rectangles; SF Symbols have different optical frame insets.
+        func alignmentBounds(_ view: NSView) -> NSRect {
+            view.superview!.convert(view.alignmentRect(forFrame:view.frame),to:content)
+        }
+        let gearBounds = alignmentBounds(gear), titleBounds = alignmentBounds(title), refreshBounds = alignmentBounds(refreshIcon)
+        let header = content.arrangedSubviews.first!
+        let context = "phase=\(phase) language=\(language.rawValue) source=\(source) windowVisible=\(window.isVisible) content=\(content.frame) header=\(header.frame) refreshFrame=\(refreshIcon.convert(refreshIcon.bounds,to:content)) gearFrame=\(gear.convert(gear.bounds,to:content)) refreshAlignment=\(refreshBounds) gearAlignment=\(gearBounds) refreshInsets=\(refreshIcon.alignmentRectInsets) gearInsets=\(gear.alignmentRectInsets) headerNeedsLayout=\(header.needsLayout) ambiguous=\(header.hasAmbiguousLayout)"
+        assert(gearBounds.minX > titleBounds.maxX && abs(gearBounds.midY - titleBounds.midY) < 1,"settings sits to the right of the title on the same row; " + context)
+        assert(gearBounds.maxX > 210 && gearBounds.maxY > height - 35,"settings stays in the top-right corner; " + context)
+        assert(refreshBounds.maxX < gearBounds.minX && abs(refreshBounds.midY - gearBounds.midY) < 1,"refresh sits immediately left of settings in the title row; " + context)
+        for bounds in [refreshBounds,gearBounds] {
+            assert(abs(bounds.width - 22) < 0.01 && abs(bounds.height - 22) < 0.01,"header icons keep 22-point alignment bounds; " + context)
+        }
+        assert(abs(gearBounds.minX - refreshBounds.maxX - 6) < 0.01,"header icons keep a 6-point gap; " + context)
+    }
+    checkHeaderLayout("initial-offscreen")
+    window.orderFront(nil); window.displayIfNeeded()
+    _ = RunLoop.current.run(mode:.default,before:Date(timeIntervalSinceNow:0.01))
+    window.layoutIfNeeded(); surface.layoutSubtreeIfNeeded()
+    assert(window.isVisible,"native header layout must also be checked in a visible window")
+    checkHeaderLayout("first-visible")
+    window.orderOut(nil)
     assert(descendants(content).compactMap { $0 as? NSButton }.allSatisfy { $0.title != L("立即刷新") },"no bottom text refresh button remains")
     if case .official = source {
         let labels = descendants(content).compactMap { ($0 as? NSTextField)?.stringValue }
