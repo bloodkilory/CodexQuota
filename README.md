@@ -15,7 +15,7 @@ QuotaNest 是原生 macOS 菜单栏应用，将八个官方平台的套餐余量
 
 Native macOS menu bar quotas and DeepSeek API balances, with Chinese / English and one shared display source.
 
-> 本文描述本地开发版 **1.8.0（build 13，尚未发布）**；当前公开版 **v1.7.1 尚不包含本次新增功能**。
+**v1.8.0 新增**：CC Switch 已有连接、DeepSeek 官方 API 余额、统一显示来源和玻璃风格界面。支持 **中文 / English**，在 **设置 → 语言** 中即时切换。[下载正式版](https://github.com/bloodkilory/QuotaNest/releases/tag/v1.8.0) · [English documentation](README.en.md)
 
 - **一眼知道还能用多少**：套餐显示剩余百分比与彩色填充，API 钱包显示原币种金额。
 - **统一来源选择**：在顶部“菜单栏显示”中选择官方套餐或已连接的 API 余额，胶囊与详情同步，记住上次选择。
@@ -31,8 +31,8 @@ Native macOS menu bar quotas and DeepSeek API balances, with Chinese / English a
 1. 在本仓库 **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)** 页面下载最新的 `QuotaNest-<version>-universal.dmg`。
 2. 打开 DMG，将 **QuotaNest.app** 拖到 **Applications**。
 3. 推出磁盘映像，从“应用程序”打开 QuotaNest。
-4. 在菜单栏找到带平台图标的百分比胶囊，完成下面的账号登录后等待刷新。
-5. 需要开机自启时，点击胶囊并勾选 **登录时启动**。
+4. 点击菜单栏胶囊，在顶部 **菜单栏显示** 选择套餐余量；查询 DeepSeek 余额时，先在 **设置 → 连接已有工具…** 选择 CC Switch 中的已有连接。
+5. 在 **设置** 中选择语言、开启 **登录时启动** 或检查应用更新。
 
 **首次打开提示无法验证开发者？** 当前社区构建使用 ad-hoc 签名，尚未经过 Apple Developer ID 签名及公证。尝试打开后，在 **系统设置 → 隐私与安全性 → 仍要打开** 中单独允许此应用。无需关闭 Gatekeeper。受管理的工作电脑可能不允许此操作。
 

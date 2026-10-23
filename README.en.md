@@ -6,7 +6,7 @@ A native Swift/AppKit menu bar utility for eight official subscription providers
 
 原生 macOS 菜单栏套餐余量与 DeepSeek API 余额，支持中文 / English，统一选择显示来源。
 
-> This README describes local development version **1.8.0 (build 13, unpublished)**. The current public release, **v1.7.1, does not include these new features**.
+**New in v1.8.0:** existing CC Switch connections, official DeepSeek API balances, one display-source selector, and a glass UI. Switch **English / 中文** instantly in **Settings → Language**. [Download the stable release](https://github.com/bloodkilory/QuotaNest/releases/tag/v1.8.0) · [中文文档](README.md)
 
 ## Experimental domestic-provider adapters
 
