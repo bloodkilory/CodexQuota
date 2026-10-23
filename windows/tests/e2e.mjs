@@ -78,7 +78,9 @@ try{
  function native(mode,options={}){const args=['-NoProfile','-File','scripts/native-tray.ps1','-Mode',mode];for(const [k,v] of Object.entries(options))args.push(`-${k}`,String(v));const r=spawnSync('powershell.exe',args,{encoding:'utf8',windowsHide:true});if(r.status!==0)throw new Error(r.stderr||r.stdout);}
  native('Prepare');const rect=JSON.parse((await readFile(path.join(resultDir,'native-tray-rect.json'),'utf8')).replace(/^\uFEFF/,''));
  native('Move',{X:rect.x+rect.w/2,Y:rect.y+rect.h/2});
- let bounds=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");await writeFile(path.join(resultDir,'hover-bounds.json'),JSON.stringify(bounds));assert.equal(bounds.visible,true,'hover card should appear');
+ let bounds=await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')");await writeFile(path.join(resultDir,'hover-bounds.json'),JSON.stringify(bounds));
+ if(!bounds.visible){native('Click',{X:rect.x+rect.w/2,Y:rect.y+rect.h/2});await writeFile(path.join(resultDir,'tray-click-diagnostic.json'),JSON.stringify(await execute("return window.__TAURI_INTERNALS__.invoke('demo_tray_bounds')")));}
+ assert.equal(bounds.visible,true,'hover card should appear');
  const left=Math.min(bounds.card.x,rect.x)-8,top=Math.min(bounds.card.y,rect.y)-8;
  native('Capture',{X:left,Y:top,W:Math.max(bounds.card.x+bounds.card.w,rect.x+rect.w)-left+8,H:Math.max(bounds.card.y+bounds.card.h,rect.y+rect.h)-top+8,Name:'windows-tray-claude'});
  native('Capture',{X:rect.x,Y:rect.y,W:rect.w,H:rect.h,Name:'windows-tray-icon'});
