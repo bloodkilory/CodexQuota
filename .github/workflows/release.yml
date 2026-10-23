@@ -1,16 +1,19 @@
 name: Build and release
 on:
   push:
+    branches: [main]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: macos-latest
-    permissions:
-      contents: write
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Test
@@ -19,15 +22,80 @@ jobs:
         run: ./scripts/test.sh
       - name: Build universal DMG
         run: ./scripts/package-dmg.sh
+      - name: Validate platform versions
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, plistlib, re
+          root = pathlib.Path('.')
+          version = json.loads((root / 'windows/package.json').read_text())['version']
+          assert re.fullmatch(r'\d+\.\d+\.\d+', version), version
+          plist = plistlib.loads((root / '.build/QuotaNest.app/Contents/Info.plist').read_bytes())
+          assert plist['CFBundleShortVersionString'] == version
+          assert json.loads((root / 'windows/src-tauri/tauri.conf.json').read_text())['version'] == version
+          ref = os.environ['RELEASE_REF']
+          if ref.startswith('refs/tags/'):
+              assert ref == 'refs/tags/v' + version, (ref, version)
+          print('Both platforms use version', version)
+          PY
       - uses: actions/upload-artifact@v4
         with:
           name: QuotaNest-universal
           path: dist/*
-      - name: Publish tag release
-        if: startsWith(github.ref, 'refs/tags/')
+          if-no-files-found: error
+  windows:
+    uses: ./.github/workflows/windows-beta.yml
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: QuotaNest-universal
+          path: release-artifacts/mac
+      - uses: actions/download-artifact@v4
+        with:
+          name: QuotaNest-windows-x64
+          path: release-artifacts/windows
+      - name: Prepare and verify release files
+        run: |
+          VERSION=$(python3 -c 'import json; print(json.load(open("windows/package.json"))["version"])')
+          test "$GITHUB_REF_NAME" = "v$VERSION"
+          mkdir publish
+          cp "release-artifacts/mac/QuotaNest-$VERSION-universal.dmg" publish/
+          cp "release-artifacts/windows/QuotaNest-$VERSION-windows-x64-setup.exe" publish/
+          cd publish
+          sha256sum "QuotaNest-$VERSION-universal.dmg" "QuotaNest-$VERSION-windows-x64-setup.exe" > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - name: Upload and publish verified stable release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' .build/QuotaNest.app/Contents/Info.plist)
-          test "$GITHUB_REF_NAME" = "v$VERSION"
-          gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --title "QuotaNest $VERSION" --notes-file RELEASE_NOTES.md
+          if gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft' > existing-draft.txt 2>/dev/null; then
+            test "$(cat existing-draft.txt)" = true
+            gh release upload "$GITHUB_REF_NAME" publish/* --clobber
+            gh release edit "$GITHUB_REF_NAME" --title "QuotaNest ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$GITHUB_REF_NAME" publish/* --verify-tag --draft --title "QuotaNest ${GITHUB_REF_NAME#v}" --notes-file RELEASE_NOTES.md
+          fi
+          RELEASE_API_URL=$(gh release view "$GITHUB_REF_NAME" --json apiUrl --jq .apiUrl)
+          gh api "$RELEASE_API_URL" > release.json
+          python3 - <<'PY'
+          import hashlib, json, pathlib
+          release = json.loads(pathlib.Path('release.json').read_text())
+          assert release['draft'] is True and release['prerelease'] is False
+          files = {p.name: p for p in pathlib.Path('publish').iterdir()}
+          assert len(files) == 3 and len(release['assets']) == 3
+          assert {a['name'] for a in release['assets']} == set(files)
+          for asset in release['assets']:
+              content = files[asset['name']].read_bytes()
+              assert asset['state'] == 'uploaded' and asset['size'] == len(content)
+              assert asset['digest'] == 'sha256:' + hashlib.sha256(content).hexdigest()
+          print('All three uploaded assets match their SHA-256 digests')
+          PY
+          gh release edit "$GITHUB_REF_NAME" --draft=false --latest

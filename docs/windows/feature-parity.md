@@ -1,8 +1,8 @@
 # Windows / macOS feature parity · 功能核对
 
-Compared against Mac v1.8.0 (`37bdf5f`) and Windows v1.9.0. “Implemented” means code plus synthetic automated tests; it does not certify real Windows accounts. The Mac comparison baseline remains v1.8.0.
+Compared against macOS and Windows v1.9.0. “Implemented” means code plus automated tests; Windows tests use synthetic credentials and do not certify real Windows accounts.
 
-核对基准：Mac v1.8.0 与 Windows v1.9.0。已实现与真实账号验收分开；Mac 对比基准仍为 v1.8.0。
+核对基准：macOS / Windows v1.9.0。已实现与真实账号验收分开；Windows 自动化使用模拟凭据。
 
 | Feature / 功能 | Mac | Windows v1.9.0 | Result / 差异 |
 | --- | --- | --- | --- |
@@ -18,7 +18,7 @@ Compared against Mac v1.8.0 (`37bdf5f`) and Windows v1.9.0. “Implemented” me
 | Codex transient reconnect | One retry in 30s | One bounded attempt | Remaining transport difference / 仍有一次重连差异 |
 | Concurrent fetch | Per-provider coordinator | One global worker | Source switch queues new source after bounded previous request / Windows 旧请求完成后立即查询新来源 |
 | 中英 / English / system language | Yes | Yes | Tray menu uses bilingual labels; detail/settings switch language / Windows 托盘菜单部分使用双语标签 |
-| Glass appearance | macOS material; native glass SDK branch | WebView CSS glass | Similar visual language; Windows does not implement macOS Liquid Glass / 平台材质不同 |
+| Glass appearance | System NSPopover backdrop/arrow/corners; inner glass-style cards | WebView CSS glass | Similar visual language; Windows does not implement macOS Liquid Glass / 平台材质不同 |
 | Compact always-visible value | 64-point menu-bar capsule | Dynamic numeric ring icon; hover usage; click controls | Windows uses a compact numeric icon and hover card, no desktop capsule / Windows 使用数字环形托盘和悬停卡片 |
 | Launch at sign-in | macOS login item | Per-user HKCU Run | Windows installer update preserves preference and Run entry / 按平台实现，升级保留 |
 | App updates | Formal GitHub Release + DMG + SHA256; admin if needed | Formal GitHub Release + EXE + SHA256; per-user NSIS | Startup/click checks only; no beta auto-update feed / 内测附件不作为正式更新推送 |
@@ -35,7 +35,7 @@ The following sources exist in Mac and are **not implemented on Windows**. They 
 | --- | --- | --- |
 | Antigravity | `Sources/OfficialProviders.swift` | Verify native `agy.exe` packaging/version and noninteractive `/usage` command; remove Unix `/usr/bin/env` and browser blocker assumptions / 原生 CLI 与无交互命令验证 |
 | Kimi Code (experimental) | `Sources/KimiQuotaClient.swift` | Verify Windows OAuth storage for `.kimi-code`/`.kimi`, then port token expiry and grouped coding/total usage / Windows 登录文件与分组额度解析 |
-| ZCode (experimental) | `Sources/ChinaLoginClients.swift` | Windows credential encryption key derives from home/user; verify Windows identity and existing project exchange / 凭据解密身份与已有项目令牌交换 |
+| ZCode (experimental) | `Sources/ChinaLoginClients.swift` | Verify Windows official credential storage/encryption, project exchange and Start Plan device metadata / 验证登录存储解密、项目会话及免费套餐设备信息 |
 | MiniMax Code (experimental) | `Sources/ChinaLoginClients.swift` | Verify Windows data-dir/official OAuth format and signed CN usage requests / 数据目录、OAuth 格式和国内签名请求 |
 | Qoder (experimental) | `Sources/QoderQuotaClient.swift` | Windows npm/Node discovery and exact verified WASM helper compatibility; native build unsupported in Mac too / npm 路径、WASM 版本兼容性 |
 | CodeBuddy (experimental) | `Sources/CodeBuddyQuotaClient.swift` | Port VS Code Windows secret storage/DPAPI; Mac Keychain/PBKDF decryption cannot be copied / Windows VS Code 凭据解密 |

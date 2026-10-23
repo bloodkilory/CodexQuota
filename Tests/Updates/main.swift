@@ -28,6 +28,16 @@ check(try ReleaseManifest.digest(for:name,manifest:manifest) == Data(repeating:0
 rejects("duplicate manifest rows rejected") { _ = try ReleaseManifest.digest(for:name,manifest:manifest + manifest) }
 rejects("wrong filename rejected") { _ = try ReleaseManifest.digest(for:name,manifest:Data((hash + "  other.dmg\n").utf8)) }
 rejects("bad digest rejected") { _ = try ReleaseManifest.digest(for:name,manifest:Data(("xyz  " + name).utf8)) }
+var crossPlatform = try JSONSerialization.jsonObject(with:json()) as! [String:Any]
+var crossAssets = crossPlatform["assets"] as! [[String:Any]]
+crossAssets.append(["name":"QuotaNest-1.7.0-windows-x64-setup.exe","url":"https://api.github.com/repos/bloodkilory/QuotaNest/releases/assets/3","size":200])
+crossPlatform["assets"] = crossAssets
+guard case .available(let macOnly) = try ReleaseManifest.release(from:JSONSerialization.data(withJSONObject:crossPlatform),currentVersion:current) else { fatalError("cross-platform release") }
+check(macOnly.filename == name,"Mac updater selects DMG from a cross-platform release")
+let windowsLine = String(repeating:"b",count:64) + "  QuotaNest-1.7.0-windows-x64-setup.exe\n"
+for combined in [Data(windowsLine.utf8) + manifest,manifest + Data(windowsLine.utf8)] {
+    check(try ReleaseManifest.digest(for:name,manifest:combined) == Data(repeating:0xaa,count:32),"shared checksum selects Mac digest regardless of Windows row order")
+}
 check(ReleaseManifest.matches(Data([1,2]),Data([1,2])), "digest equality")
 check(!ReleaseManifest.matches(Data([1,2]),Data([1,3])), "digest inequality")
 

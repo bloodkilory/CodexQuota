@@ -1,9 +1,10 @@
 <p align="center"><img src="assets/quotanest.png" width="136" alt="QuotaNest icon"></p>
 <h1 align="center">余度 QuotaNest</h1>
-<p align="center"><b>所有 AI 余量，一眼有数。</b><br>AI subscription quotas, right in your Mac menu bar.</p>
+<p align="center"><b>所有 AI 余量，一眼有数。</b><br>AI quotas in your Mac menu bar and Windows tray.</p>
 <p align="center">
 <img src="https://img.shields.io/badge/macOS-13%2B-111827?logo=apple&logoColor=white" alt="macOS 13+">
 <img src="https://img.shields.io/badge/Universal-Intel%20%2B%20Apple%20Silicon-06b6d4" alt="Universal binary">
+<img src="https://img.shields.io/badge/Windows-11%20x64-0078D4?logo=windows&logoColor=white" alt="Windows 11 x64">
 <img src="https://img.shields.io/badge/Swift-Native-f97316?logo=swift&logoColor=white" alt="Native Swift">
 <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-8b5cf6" alt="MIT License"></a>
 </p>
@@ -11,11 +12,11 @@
 
 ---
 
-QuotaNest 是原生 macOS 菜单栏应用，将八个官方平台的套餐余量和 CC Switch 已有 DeepSeek 官方 API 余额放进 64 点胶囊，每分钟刷新。支持中文 / English；顶部一个来源选择器同时切换胶囊和详情。
+QuotaNest 在 Mac 菜单栏和 Windows 托盘展示 AI 剩余额度，每分钟刷新。Mac 保留原生 64 点胶囊与八个官方平台；Windows 支持 Codex、Claude 官方套餐与 CC Switch 已有 DeepSeek API 余额。两端均支持中文 / English 和按平台保存模型选择。
 
-Native macOS menu bar quotas and DeepSeek API balances, with Chinese / English and one shared display source.
+AI quotas in the macOS menu bar and Windows tray, with Chinese / English and per-provider model selection.
 
-**v1.8.0 新增**：CC Switch 已有连接、DeepSeek 官方 API 余额、统一显示来源和玻璃风格界面。支持 **中文 / English**，在 **设置 → 语言** 中即时切换。[下载正式版](https://github.com/bloodkilory/QuotaNest/releases/tag/v1.8.0) · [English documentation](README.en.md)
+**v1.9.0 新增**：Windows x64 安装包、品牌色数字圆环托盘图标、悬停额度卡片，以及两端多模型额度单选。Mac 弹窗更紧凑，刷新与设置为标题栏图标，并修复 ZCode 免费 Start Plan 额度读取。[下载正式版](https://github.com/bloodkilory/QuotaNest/releases/tag/v1.9.0) · [English documentation](README.en.md)
 
 - **一眼知道还能用多少**：套餐显示剩余百分比与彩色填充，API 钱包显示原币种金额。
 - **统一来源选择**：在顶部“菜单栏显示”中选择官方套餐或已连接的 API 余额，胶囊与详情同步，记住上次选择。
@@ -25,6 +26,13 @@ Native macOS menu bar quotas and DeepSeek API balances, with Chinese / English a
 > 独立社区项目，与各平台厂商无隶属关系。本版支持中文和英文、官方账号套餐额度及 DeepSeek 官方 API 余额；不查询第三方中转余额。
 
 ## 安装
+
+| 系统 | 下载 | 使用入口 |
+| --- | --- | --- |
+| macOS 13+，Intel / Apple Silicon | `QuotaNest-1.9.0-universal.dmg` | 菜单栏胶囊 |
+| Windows 11 x64 | `QuotaNest-1.9.0-windows-x64-setup.exe` | 动态数字圆环托盘；悬停查看额度，点击打开控制面板 |
+
+两个安装包与统一的 `SHA256SUMS.txt` 均在 [v1.9.0 Release](https://github.com/bloodkilory/QuotaNest/releases/tag/v1.9.0)。Windows 安装、功能范围和校验方法见 [Windows 说明](docs/windows/README.md)。以下安装步骤适用于 Mac。
 
 **系统要求：macOS 13 或更新版本。** DMG 内含 Intel / Apple Silicon 通用应用；对应平台支持的官方客户端需要另外安装并登录。
 
@@ -39,7 +47,7 @@ Native macOS menu bar quotas and DeepSeek API balances, with Chinese / English a
 下载后可对照 Release 中的 `SHA256SUMS.txt` 检查文件完整性：
 
 ```sh
-shasum -a 256 ~/Downloads/QuotaNest-1.8.0-universal.dmg
+shasum -a 256 ~/Downloads/QuotaNest-1.9.0-universal.dmg
 ```
 
 ## 从 CodexQuota 升级
@@ -170,6 +178,8 @@ Apple Silicon 产物为交叉编译版本；当前本地运行验证在 Intel Ma
 
 [MIT License](LICENSE) · 原创应用图标由 AI 辅助生成，随项目一起提供。第三方名称及商标归各自所有者。
 
-## Windows 内测版
+## Windows
 
-新增独立的 Windows 11 x64 内测客户端，保留现有 Mac 原生版。支持 CC Switch / DeepSeek 官方 API 余额及原生 Codex / Claude 官方套餐额度；支持按来源记住周期与币种，内测安装包由 Windows Actions 生成，未列为正式支持平台。详见 [Windows 内测说明](docs/windows/README.md)。
+Windows 11 x64 版支持 Codex、Claude 官方套餐与 CC Switch 已有 DeepSeek 官方 API 余额。托盘中心显示数字，外圈进度及数字使用平台强调色；悬停查看紧凑额度卡片，点击打开设置，返回详情可单选模型、切换周期或币种。没有桌面悬浮胶囊。
+
+两端查询范围存在差异，见 [逐项对照](docs/windows/feature-parity.md)。Windows Server 2025 CI 已验证安装、升级保留偏好、原生托盘与界面交互及卸载；真实 Windows 11 账号、代理及多屏 DPI 仍待用户验收。详见 [Windows 说明](docs/windows/README.md)。

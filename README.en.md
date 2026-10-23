@@ -1,12 +1,12 @@
 <p align="center"><img src="assets/quotanest.png" width="120" alt="QuotaNest"></p>
 <h1 align="center">QuotaNest · 余度</h1>
-<p align="center">AI subscription quotas, right in your Mac menu bar.<br><a href="README.md">中文</a> · <a href="README.en.md">English</a></p>
+<p align="center">AI quotas in your Mac menu bar and Windows tray.<br><a href="README.md">中文</a> · <a href="README.en.md">English</a></p>
 
-A native Swift/AppKit menu bar utility for eight official subscription providers and existing CC Switch DeepSeek API balances. A 64-point capsule refreshes every minute. One top source selector controls both the capsule and details. The interface supports Chinese and English.
+AI quota readings for the macOS menu bar and Windows tray, refreshed every minute. The native Mac app keeps its 64-point capsule and eight official providers. Windows supports Codex and Claude subscriptions plus existing CC Switch DeepSeek API balances. Both apps support Chinese / English and saved model selections per provider.
 
 原生 macOS 菜单栏套餐余量与 DeepSeek API 余额，支持中文 / English，统一选择显示来源。
 
-**New in v1.8.0:** existing CC Switch connections, official DeepSeek API balances, one display-source selector, and a glass UI. Switch **English / 中文** instantly in **Settings → Language**. [Download the stable release](https://github.com/bloodkilory/QuotaNest/releases/tag/v1.8.0) · [中文文档](README.md)
+**New in v1.9.0:** a Windows x64 installer, dynamic number-and-ring tray icons, hover quota cards, and model quota radio buttons on both platforms. Mac gets compact details, header refresh/settings icons, and free ZCode Start Plan balances. [Download the stable release](https://github.com/bloodkilory/QuotaNest/releases/tag/v1.9.0) · [中文文档](README.md)
 
 ## Experimental domestic-provider adapters
 
@@ -25,6 +25,13 @@ Qoder native-only/CN builds and standalone CodeBuddy CLI logins are not supporte
 See evidence and limitations: [Kimi](docs/providers/kimi.md), [ZCode/MiniMax](docs/providers/china-login.md), [Qoder](docs/providers/qoder-codebuddy.md), [CodeBuddy](docs/providers/codebuddy.md).
 
 ## Install
+
+| Platform | Download | Display |
+| --- | --- | --- |
+| macOS 13+, Intel / Apple Silicon | `QuotaNest-1.9.0-universal.dmg` | Native menu bar capsule |
+| Windows 11 x64 | `QuotaNest-1.9.0-windows-x64-setup.exe` | Dynamic tray number/ring, hover details and click controls |
+
+Both installers and the combined `SHA256SUMS.txt` are in the [v1.9.0 Release](https://github.com/bloodkilory/QuotaNest/releases/tag/v1.9.0). See [Windows setup and verification](docs/windows/README.md); the steps below apply to Mac.
 
 Requires macOS 13+. Download the universal DMG from this repository’s **[Releases](https://github.com/bloodkilory/QuotaNest/releases/latest)**, drag the app into **Applications**, eject the image, then open the installed app. Intel and Apple Silicon binaries are included. Provider CLIs are separate prerequisites.
 
@@ -101,6 +108,8 @@ The compact capsule uses provider marks instead of letter abbreviations. Its col
 
 The 64-point capsule has a narrow period button after a vertical separator. Click `5h` / `1d` / `1w` / `Q` (`额` in Chinese) to switch available cached hourly, daily, weekly or billing quotas instantly. Each provider remembers its selection; hours are preferred initially. With only one valid period the switch is disabled. Click the left portion for details. The progress fill applies only to the left portion; the period button keeps its translucent base.
 
-## Windows beta
+## Windows
 
-An independent Windows 11 x64 beta preserves the native Mac app. It supports CC Switch / DeepSeek official API balances and native Codex/Claude subscription quotas. Windows Actions builds beta installers; Windows is not yet listed as a fully validated platform. See [Windows beta instructions](docs/windows/README.md).
+Windows 11 x64 supports Codex and Claude subscriptions plus existing CC Switch DeepSeek official API balances. The tray shows a number inside a hollow progress ring in the provider accent color. Hover for compact quota details, click for settings, then return to details to choose a model, period or currency. There is no floating desktop capsule.
+
+The [feature comparison](docs/windows/feature-parity.md) lists remaining Mac/Windows differences. Windows Server 2025 CI verifies installation, upgrades preserving preferences, native tray/UI interactions and uninstall. Real Windows 11 accounts, proxies and multi-monitor DPI still need user validation. See [Windows instructions](docs/windows/README.md).

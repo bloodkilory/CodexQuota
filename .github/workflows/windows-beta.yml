@@ -10,7 +10,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: windows-build-${{ github.head_ref || github.ref }}
+  group: windows-build-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
 jobs:
   test-build:

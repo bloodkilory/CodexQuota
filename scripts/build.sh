@@ -4,9 +4,9 @@ cd "$(dirname "$0")/.."
 APP="$PWD/.build/QuotaNest.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" .build/bin
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
-APP_FLAGS=(-swift-version 5 -O)
+APP_FLAGS=(-swift-version 5 -O -whole-module-optimization)
 for ARCH in arm64 x86_64; do
-    swiftc -swift-version 5 -O -sdk "$SDK" -target "$ARCH-apple-macosx13.0" Sources/Localization.swift Sources/UpdateModels.swift Sources/UpdateHelperContract.swift Sources/UpdateReplacement.swift Helpers/Update/main.swift -o ".build/bin/QuotaNestUpdateHelper-$ARCH"
+    swiftc -swift-version 5 -O -whole-module-optimization -sdk "$SDK" -target "$ARCH-apple-macosx13.0" Sources/Localization.swift Sources/UpdateModels.swift Sources/UpdateHelperContract.swift Sources/UpdateReplacement.swift Helpers/Update/main.swift -o ".build/bin/QuotaNestUpdateHelper-$ARCH"
 done
 cp -R Resources/*.lproj "$APP/Contents/Resources/"
 cp assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
@@ -32,8 +32,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleExecutable</key><string>QuotaNest</string>
 <key>CFBundleIconFile</key><string>AppIcon</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.8.0</string>
-<key>CFBundleVersion</key><string>13</string>
+<key>CFBundleShortVersionString</key><string>1.9.0</string>
+<key>CFBundleVersion</key><string>14</string>
 <key>CFBundleDevelopmentRegion</key><string>en</string>
 <key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hans</string></array>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
