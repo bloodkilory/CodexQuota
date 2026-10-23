@@ -48,13 +48,15 @@ export function present(s:Snapshot) {
  const c=s.connections.find(c=>s.preferences.source===`api:${c.id}`);
  const data=s.reading.data;const options=displayChoices(s);const saved=s.preferences.display?.[s.preferences.source];
  const selected=options.find(o=>o.value===saved)?.value||options[0]?.value;
- let amount='—';
+ let amount='—';let quotaWindow:Quota['windows'][number]|undefined;
  if(data?.kind==='balance'){const wallet=data.value.find(w=>w.currency===selected)||data.value[0];if(wallet)amount=`${wallet.currency} ${wallet.total}`;}
  if(data?.kind==='quota'){
-  const values=data.value.windows.filter(w=>selected==null||String(w.minutes)===selected).flatMap(w=>w.remaining==null?[]:[w.remaining]);
-  if(values.length)amount=`${Math.min(...values).toFixed(0)}%`;
+  for(const w of data.value.windows.filter(w=>selected==null||String(w.minutes)===selected)){
+   if(w.remaining!=null&&(quotaWindow?.remaining==null||w.remaining<quotaWindow.remaining))quotaWindow=w;
+  }
+  if(quotaWindow?.remaining!=null)amount=`${quotaWindow.remaining.toFixed(0)}%`;
  }
- return {name:s.preferences.source==='codex'?'Codex':s.preferences.source==='claude'?'Claude':c?.name||'DeepSeek',amount,selected,stale:!!s.reading.error && !!data,updated:s.reading.updated};
+ return {name:s.preferences.source==='codex'?'Codex':s.preferences.source==='claude'?'Claude':c?.name||'DeepSeek',amount,selected,quotaWindow,stale:!!s.reading.error && !!data,updated:s.reading.updated};
 }
 export function demoSnapshot(source='api:claude|demo'):Snapshot {
  return {preferences:{source,language:'en',directory:'C:\\Users\\Demo\\.cc-switch',autostart:false},connections:[{id:'claude|demo',name:'DeepSeek',harness:'claude',origin:'https://api.deepseek.com',supported:true}],reading:{data:source==='claude'?{kind:'quota',value:{plan:'Max',windows:[{label:'claude',remaining:82,minutes:300,resetsAt:1792792800},{label:'claude',remaining:61,minutes:10080,resetsAt:null},{label:'sonnet',remaining:93,minutes:10080,resetsAt:null},{label:'opus',remaining:39,minutes:10080,resetsAt:null}]}}:source==='codex'?{kind:'quota',value:{plan:'Plus',windows:[{remaining:76,minutes:300,resetsAt:1792749600},{remaining:62,minutes:10080,resetsAt:1793318400}]}}:{kind:'balance',value:[{currency:'CNY',total:'18.60',granted:'3.60',toppedUp:'15.00'},{currency:'USD',total:'3.20',granted:'0.20',toppedUp:'3.00'}]},updated:1792731600,error:null,refreshing:false},discoveryError:null,update:null,updateStatus:'idle'};

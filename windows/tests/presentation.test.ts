@@ -27,3 +27,13 @@ test('missing primary duration uses the first explicit period, matching tray sum
  const s=demoSnapshot('codex');s.reading.data={kind:'quota',value:{plan:null,windows:[{remaining:80,minutes:null,resetsAt:null},{remaining:50,minutes:10080,resetsAt:null}]}};
  assert.equal(present(s).amount,'50%');assert.equal(present(s).selected,'10080');
 });
+test('compact reset time belongs to the quota group supplying the displayed minimum',()=>{
+ const s=demoSnapshot('claude');s.preferences.display={claude:'10080'};
+ if(s.reading.data?.kind!=='quota')throw new Error('quota fixture missing');
+ s.reading.data.value.windows[1].resetsAt=111;
+ s.reading.data.value.windows[3].resetsAt=222;
+ assert.equal(present(s).amount,'39%');assert.equal(present(s).quotaWindow?.resetsAt,222);
+ s.reading.data.value.windows[3].remaining=null;
+ assert.equal(present(s).amount,'61%');assert.equal(present(s).quotaWindow?.resetsAt,111);
+ assert.equal(present(demoSnapshot()).quotaWindow,undefined);
+});
