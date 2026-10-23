@@ -1,0 +1,11 @@
+# Windows beta — approved implementation scope
+
+User approved the Windows plan on 2026-10-23. Preserve the Swift/AppKit macOS application and its release pipeline. Add an independent `windows/` Tauri 2 client (Rust backend, TypeScript/HTML/CSS frontend) for Windows 11 x64.
+
+- Tray icon opens a compact details window; one source selector controls displayed quota/balance. Closing hides to tray; Quit exits. English/Chinese/system language, light/dark glass-style surface, startup/manual/60-second refresh.
+- Backend reads explicitly selected CC Switch connections from the local schema 18–20 SQLite database in read-only mode. Show candidate configuration metadata; do not imply observed session routing. Do not add key entry, modify CC Switch, expose keys to JS, or execute credential helpers.
+- Fixed DeepSeek official balance endpoint, decimal amounts by currency, total is not added to component balances. Unknown is not zero. Reject redirects, timeout after 30 seconds, at most one transient retry, obey 429 Retry-After. Re-resolve source before accepting a result. Clear old balance on credential/source change; retain stale values for transient failures.
+- Codex uses installed native Windows `codex.exe app-server` with the existing official JSON-RPC sequence. Bounded subprocess lifetime/output; no shell interpolation. WSL and Claude official login discovery are explicitly outside this beta, not silently mapped to macOS paths.
+- Preserve source/language/autostart preferences across installs. Use per-user NSIS installation and GitHub formal releases only for update checks/downloads. Beta builds are Actions artifacts, never injected into macOS latest or official updater feed. Windows manual update validates GitHub asset origin/name and SHA-256, then runs the installer; no background scheduled update checks (startup and user click only).
+- No real credentials in CI. Rust fixture/database/protocol/HTTP tests, frontend state/UI tests, Windows GUI smoke tests and installer/hash artifacts. Mac regression runs unchanged.
+- Development/build verification is separate from real Windows account/desktop acceptance. Beta documentation lists unverified native tray placement, DPI, real proxy/login, autostart and upgrade behavior until evidence exists.

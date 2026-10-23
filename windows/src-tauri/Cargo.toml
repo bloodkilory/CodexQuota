@@ -1,0 +1,39 @@
+[package]
+name = "quotanest-windows"
+version = "1.9.0-beta.1"
+edition = "2021"
+rust-version = "1.85"
+
+[lib]
+name = "quotanest_windows"
+
+[[bin]]
+name = "QuotaNest"
+path = "src/main.rs"
+required-features = ["desktop"]
+
+[features]
+default = ["desktop"]
+desktop = ["dep:tauri", "dep:tauri-build", "dep:tauri-plugin-autostart", "dep:tauri-plugin-single-instance"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+rust_decimal = "1"
+sha2 = "0.10"
+toml = "0.8"
+url = "2"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls-native-roots"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "process", "io-util", "sync", "fs"] }
+semver = "1"
+httpdate = "1"
+tauri = { version = "2", optional = true, features = ["tray-icon", "image-png"] }
+tauri-plugin-autostart = { version = "2", optional = true }
+tauri-plugin-single-instance = { version = "2", optional = true }
+
+[build-dependencies]
+tauri-build = { version = "2", optional = true }
+
+[dev-dependencies]
+tempfile = "3"
