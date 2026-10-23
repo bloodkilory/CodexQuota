@@ -1,5 +1,6 @@
 param([string]$Mode='Prepare',[double]$X=0,[double]$Y=0,[double]$W=0,[double]$H=0,[string]$Name='windows-tray')
 $ErrorActionPreference='Stop'
+Add-Type -AssemblyName WindowsBase
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Windows.Forms
