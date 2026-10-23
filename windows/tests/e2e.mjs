@@ -29,6 +29,8 @@ try{
  await wait(async()=>{const r=await fetch('http://127.0.0.1:9222/json/version',{signal:AbortSignal.timeout(1000)});assert.equal(r.status,200);});
  const created=await request('POST','/session',{capabilities:{alwaysMatch:{browserName:'webview2','ms:edgeOptions':{debuggerAddress:'127.0.0.1:9222'}}}});session=created.sessionId;
  await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/18.60/));
+ // Exercise IPC reads while the worker updates the native tray.
+ for(let n=0;n<10;n++){await click('#refresh');await new Promise(r=>setTimeout(r,150));await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/18.60/));}
  await screenshot('windows-deepseek-en');
  await select('#source','codex');
  await wait(async()=>assert.match(await execute('return document.querySelector(".amount")?.textContent || ""'),/76%/));

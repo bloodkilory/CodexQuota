@@ -108,34 +108,37 @@ async fn poll(backend: Backend, app: tauri::AppHandle) {
     } else {
         Err(AppError::new("unsupported_source"))
     };
-    let mut service = backend.service.lock().unwrap();
-    if service.finish(request, result) {
-        if let Some(tray) = app.tray_by_id("quota") {
-            let state = &service.state;
-            let amount = match &state.reading.data {
-                Some(Data::Balance(w)) => w
-                    .first()
-                    .map(|w| format!("{} {}", w.currency, w.total))
-                    .unwrap_or_else(|| "—".into()),
-                Some(Data::Quota(q)) => q
-                    .windows
-                    .first()
-                    .and_then(|w| w.remaining)
-                    .map(|n| format!("{n:.0}%"))
-                    .unwrap_or_else(|| "—".into()),
-                None => "—".into(),
-            };
-            let _ = tray.set_tooltip(Some(format!(
-                "QuotaNest · {amount}{}",
-                if state.reading.error.is_some() {
-                    " · !"
-                } else {
-                    ""
-                }
-            )));
+    let tooltip = {
+        let mut service = backend.service.lock().unwrap();
+        if !service.finish(request, result) {
+            return;
         }
+        let state = &service.state;
+        let amount = match &state.reading.data {
+            Some(Data::Balance(w)) => w.first().map(|w| format!("{} {}", w.currency, w.total)),
+            Some(Data::Quota(q)) => q
+                .windows
+                .first()
+                .and_then(|w| w.remaining)
+                .map(|n| format!("{n:.0}%")),
+            None => None,
+        }
+        .unwrap_or_else(|| "—".into());
+        format!(
+            "QuotaNest · {amount}{}",
+            if state.reading.error.is_some() {
+                " · !"
+            } else {
+                ""
+            }
+        )
+    };
+    // Tray changes synchronously dispatch to the UI thread, whose IPC handlers also read service.
+    if let Some(tray) = app.tray_by_id("quota") {
+        let _ = tray.set_tooltip(Some(tooltip));
     }
 }
+
 fn start_poll(backend: &Backend, _app: &tauri::AppHandle) {
     backend.work.notify_one();
 }
