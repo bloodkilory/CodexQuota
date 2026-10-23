@@ -10,11 +10,13 @@
 | ToolConnection | id, sourceID, upstreamConnectionID, harness, profileID, mode, configuredRoutes[], generation, observation? | mode=direct / routing / aggregation / unknown；已配置与最近观测分别记录，observation 无证据则空 |
 | ConfiguredRoute | accountID?, poolIDs[], providerLabel, endpointOrigin, modelLabel?, evidence | 聚合模式可多条；providerLabel 不由模型名推断；evidence=config / observed / unknown |
 | CredentialReference | sourceID, connectionID, locator, generation | 不包含 Key/token 明文；解析出的秘密只在查询执行上下文中短暂存在，禁止进入 Codable 缓存/诊断 |
-| BillingAccount | id, serviceID, upstreamAccountID?, organizationID?, projectID?, displayName, identityConfidence | identityConfidence=verified / sourceLocal / ambiguous；无证据时不能跨来源合并 |
-| QuotaPool | id, accountID, upstreamPoolID?, scope, metricKind, currency?, unit, period?, resetsAt?, expiresAt?, sharingEvidence | scope=account / organization / project / key / product；metricKind=subscriptionPercent / money / credits / requests / usageOnly；scope 不同禁止互相替代 |
+| BillingAccount | id, serviceID, region?, upstreamAccountID?, organizationID?, projectID?, displayName, identityConfidence | identityConfidence=verified / sourceLocal / ambiguous；无证据时不能跨来源合并；国内与国际平台分开识别 |
+| QuotaPool | id, accountID, upstreamPoolID?, productID?, parentPoolID?, aggregationRole, scope, metricKind, currency?, unit, period?, resetsAt?, expiresAt?, sharingEvidence | scope=account / organization / project / key / product；metricKind=subscriptionPercent / money / credits / requests / usageOnly；aggregationRole=reportedTotal / component / independent；总额与组成项不得重复相加 |
 | QuotaMeasurement | poolID, remaining?, used?, limit?, fetchedAt, sourceUpdatedAt?, status, accuracy, coverage?, generation | 金额/credits 用 Decimal；百分比限 0–100；accuracy=reported / estimated；coverage 标注仅此工具/此设备等可见范围 |
 
 金额必须带 ISO 4217 币种，credits 保留厂商单位。金额或积分没有 limit 就没有进度百分比；`unlimited` 只有上游明确返回时可展示，不因 limit 缺失推导。滚动窗口重置与赠送额度过期分别存储。来源时间缺失时显示查询时间，不伪造来源时间。
+
+DeepSeek 官方按 currency 分池，total_balance 是已包含 granted_balance 与 topped_up_balance 的可用总额；组成项只作明细。Kimi API 的 available_balance 为官方可用余额，cash_balance 可为负、voucher_balance 非负，不把 cash 一律截零，不将 API 钱包与 Kimi Code 套餐合并。GLM API 按量 / Coding Plan / ZCode 官方登录分别识别产品和鉴权能力；第三方平台转售的国产模型仍归属第三方计费账户。只有接口明确返回稳定身份时才跨连接去重。
 
 ## 方法
 
@@ -49,3 +51,6 @@
 8. 来源数据库忙锁/版本不兼容/删除、401、429、查询失败：各状态可复现，八个旧平台不受影响。
 9. 自定义脚本、命令型凭据 helper：不执行；不访问任意跨域余额地址。
 10. Kilo BYOK 的平台侧 $0：明确上游计费，不能标免费；Kiro / Grok 共用范围只采用实测返回的身份与池标识。
+11. DeepSeek 的 total 与充值/赠送组成项：总计一次；Claude 推理 `/anthropic` 不用于拼接余额查询地址。
+12. Kimi API 现金负数、代金券与可用余额：保留官方语义；不同区域 Key 不混用；不冒充 Kimi Code 登录额度。
+13. GLM 名称或 OpenAI-compatible 协议不足以证明 Coding Plan/钱包查询能力；缺查询契约只识别配置，不试发计费推理请求。
