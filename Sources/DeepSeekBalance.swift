@@ -15,6 +15,7 @@ struct DeepSeekWallet: Equatable {
     var capsuleAmount: String {
         let value = NSDecimalNumber(decimal:total).doubleValue
         let prefix = currency == "CNY" ? "¥" : "$"
+        if abs(value) >= 1_000_000_000 { return prefix + String(format:"%.0e",value).replacingOccurrences(of:"e+",with:"e") }
         if abs(value) >= 1_000_000 { return prefix + String(format:"%.1fM",value / 1_000_000) }
         if abs(value) >= 1_000 { return prefix + String(format:"%.1fk",value / 1_000) }
         return prefix + String(format:abs(value) < 1 ? "%.2f" : "%.1f",value)

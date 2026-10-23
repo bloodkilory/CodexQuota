@@ -4,12 +4,13 @@ app.setActivationPolicy(.accessory)
 func bitmap(_ width: Int, _ height: Int) -> NSBitmapImageRep {
     NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
 }
-func render(_ amount: Double?, stale: Bool = false) -> NSBitmapImageRep {
+func render(_ amount: Double?, stale: Bool = false, dark: Bool = false) -> NSBitmapImageRep {
     let rep = bitmap(128, 48)
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
     NSGraphicsContext.current!.cgContext.scaleBy(x: 2, y: 2)
     let view = CapsuleView(frame: NSRect(x: 0, y: 0, width: 64, height: 24))
+    view.appearance = NSAppearance(named:dark ? .darkAqua : .aqua)
     view.remaining = amount; view.stale = stale; view.text = ""
     view.draw(view.bounds)
     NSGraphicsContext.restoreGraphicsState()
@@ -20,14 +21,22 @@ func black(_ image: NSBitmapImageRep, _ x: Int) -> Bool {
     return max(c.redComponent, c.greenComponent, c.blueComponent) < 0.01
 }
 // Sample away from the provider mark and rounded edge; validate actual rendered pixels.
-assert(black(render(0), 40))
-assert(!black(render(100), 40))
-assert(!black(render(50), 22) && black(render(50), 28))
-assert(!black(render(75), 34) && black(render(75), 40))
-assert(black(render(-10), 40) && !black(render(110), 40))
-assert(black(render(nil), 40) && black(render(.nan), 40))
-assert(!black(render(50, stale: true), 22) && black(render(50, stale: true), 28))
-print("PASS capsule: 0/50/75/100%, clamping, unknown, invalid and stale pixel coverage")
+assert(!black(render(0), 40), "glass capsule has a light-adaptive base instead of solid black")
+func filled(_ amount: Double?, _ x: Int, stale: Bool = false, dark: Bool = false) -> Bool {
+    let c = render(amount,stale:stale,dark:dark).colorAt(x:x * 2,y:24)!.usingColorSpace(.deviceRGB)!
+    let base = render(nil,dark:dark).colorAt(x:x * 2,y:24)!.usingColorSpace(.deviceRGB)!
+    return abs(c.redComponent - base.redComponent) + abs(c.greenComponent - base.greenComponent) + abs(c.blueComponent - base.blueComponent) > 0.08
+}
+for dark in [false,true] {
+    assert(!filled(0,40,dark:dark) && filled(100,40,dark:dark))
+    assert(filled(50,22,dark:dark) && !filled(50,28,dark:dark))
+    assert(filled(75,34,dark:dark) && !filled(75,40,dark:dark))
+    assert(!filled(-10,40,dark:dark) && filled(110,40,dark:dark))
+    assert(!filled(nil,40,dark:dark) && !filled(.nan,40,dark:dark))
+    assert(filled(50,22,stale:true,dark:dark) && !filled(50,28,stale:true,dark:dark))
+    assert(GlassAppearance.base(dark:dark,solid:true).alphaComponent == 1)
+}
+print("PASS glass capsule: light/dark 0/50/75/100%, clamping, unknown, stale and reduced transparency")
 let rep = bitmap(900, 965)
 NSGraphicsContext.saveGraphicsState()
 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
@@ -48,6 +57,7 @@ for (row, provider) in QuotaProviderID.allCases.enumerated() {
         ctx.translateBy(x: CGFloat(30 + col * 215), y: y - 15)
         ctx.scaleBy(x: 3, y: 3)
         let view = CapsuleView(frame: NSRect(x: 0, y: 0, width: 64, height: 24))
+        view.appearance = NSAppearance(named:.aqua)
         view.provider = provider; view.remaining = amount
         view.periodText = [.qoder, .codebuddy].contains(provider) ? "额" : (col % 2 == 0 ? "5h" : "1w"); view.canSwitchPeriod = amount != nil && ![.qoder, .codebuddy].contains(provider)
         view.text = amount.map { String(format: "%.0f%%", $0) } ?? "—"

@@ -22,7 +22,10 @@ struct CCSwitchCredential {
 }
 struct CCSwitchStore {
     let directory: URL
-    init(directory: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cc-switch")) { self.directory = directory }
+    let liveDirectory: URL
+    init(directory: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cc-switch"), liveDirectory: URL? = nil) {
+        self.directory = directory; self.liveDirectory = liveDirectory ?? directory
+    }
     private func failure(_ text: String) -> ConnectedAccountError { ConnectedAccountError(message:text) }
     private func withDatabase<T>(_ body: (OpaquePointer) throws -> T) throws -> T {
         let file = directory.appendingPathComponent("cc-switch.db")
@@ -40,7 +43,10 @@ struct CCSwitchStore {
         return try body(db)
     }
     private func rows(db: OpaquePointer, id: String? = nil) throws -> [(String,String,String,String,Bool)] {
-        let query = "SELECT id,app_type,name,settings_config,is_current FROM providers WHERE app_type IN ('claude','codex')" + (id == nil ? " ORDER BY app_type,name LIMIT 501" : " AND app_type=? AND id=? LIMIT 1")
+        // Discovery projects routing metadata only. Full credentials are loaded
+        // separately for a selected connection at query time.
+        let configuration = id == nil ? "json_object('env',json_object('ANTHROPIC_BASE_URL',json_extract(settings_config,'$.env.ANTHROPIC_BASE_URL')),'config',json_extract(settings_config,'$.config'))" : "settings_config"
+        let query = "SELECT id,app_type,name," + configuration + ",is_current FROM providers WHERE app_type IN ('claude','codex')" + (id == nil ? " ORDER BY app_type,name LIMIT 501" : " AND app_type=? AND id=? LIMIT 1")
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(db,query,-1,&statement,nil) == SQLITE_OK else { throw failure("CC Switch 服务配置格式不兼容") }
         defer { sqlite3_finalize(statement) }
@@ -97,7 +103,7 @@ struct CCSwitchStore {
         return (origin,supported)
     }
     private func routes() -> [String:Any] {
-        let path = directory.appendingPathComponent("live-state.json")
+        let path = liveDirectory.appendingPathComponent("live-state.json")
         let fd = open(path.path,O_RDONLY | O_NONBLOCK | O_CLOEXEC)
         guard fd >= 0 else { return [:] }
         let handle = FileHandle(fileDescriptor:fd,closeOnDealloc:true)

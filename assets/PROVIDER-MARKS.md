@@ -17,5 +17,6 @@ The following original images are displayed at menu-bar size without redrawing t
 - `provider-marks/minimax.png`: MiniMax Agent favicon, linked by https://agent.minimax.io : https://agent.minimax.io/assets/logo/favicon_v2.png?v=7 .
 - `provider-marks/qoder.png`: official Qoder favicon, linked by https://qoder.com : https://img.alicdn.com/imgextra/i4/O1CN01QkSxiCocd3D0prc8_!!6000000008124-2-tps-412-412.png .
 - `provider-marks/codebuddy.png`: `resources/copilot.png` in Tencent's official `Tencent-Cloud.coding-copilot` VS Code extension, version `4.12.39997873`: https://marketplace.visualstudio.com/items?itemName=Tencent-Cloud.coding-copilot .
+- `provider-marks/deepseek.svg`: official DeepSeek API documentation favicon, linked by https://api-docs.deepseek.com/api/get-user-balance/ : https://api-docs.deepseek.com/img/favicon.svg (retrieved 2026-10-23). Displayed without redrawing the logo for the DeepSeek wallet.
 
 Build packaging copies `assets/provider-marks/` to the application bundle's `Contents/Resources/provider-marks/`. No image is fetched at runtime. These marks identify the corresponding service and do not imply endorsement.

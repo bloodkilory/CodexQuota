@@ -13,8 +13,10 @@ swiftc -swift-version 5 Sources/CCSwitchStore.swift Sources/DeepSeekBalance.swif
 swiftc -swift-version 5 Sources/QuotaModels.swift Sources/CodexClient.swift Sources/BoundedCommand.swift Tests/Command/main.swift -o .build/command-tests
 .build/command-tests
 
-swiftc Sources/QuotaModels.swift Sources/ProviderState.swift Sources/ProviderMark.swift Sources/CapsuleView.swift Tests/Capsule/main.swift -o .build/capsule-tests
+swiftc Sources/QuotaModels.swift Sources/ProviderState.swift Sources/ProviderMark.swift Sources/GlassAppearance.swift Sources/CapsuleView.swift Tests/Capsule/main.swift -o .build/capsule-tests
 .build/capsule-tests
+swiftc -swift-version 5 -framework AppKit Sources/CCSwitchStore.swift Sources/DeepSeekBalance.swift Sources/DeepSeekBalanceClient.swift Sources/ConnectedAccountState.swift Sources/GlassAppearance.swift Sources/ConnectedAccountsView.swift Tests/ConnectedUI/main.swift -o .build/connected-ui-tests
+.build/connected-ui-tests
 
 
 swiftc Sources/QuotaModels.swift Sources/CodexClient.swift Sources/KimiPayload.swift Sources/KimiQuotaClient.swift Tests/Kimi/main.swift -o .build/kimi-tests

@@ -13,6 +13,25 @@ final class AppController: NSObject, NSApplicationDelegate {
     private let qoderClient = QoderQuotaClient()
     private let codebuddyClient = CodeBuddyQuotaClient()
     private let updateClient = ReleaseUpdateClient()
+    private var connectionStore: CCSwitchStore = {
+        let standard = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cc-switch")
+        let directory = UserDefaults.standard.string(forKey:"ccSwitchDirectory").map { URL(fileURLWithPath:$0) } ?? standard
+        return CCSwitchStore(directory:directory,liveDirectory:standard)
+    }()
+    private lazy var balanceClient = DeepSeekBalanceClient(store:connectionStore)
+    private let sourceQueue = DispatchQueue(label:"local.quotanest.cc-switch")
+    private var connections: [CCSwitchConnection] = []
+    private var accountReadings: [String:ConnectedAccountReading] = [:]
+    private var linkedConnections = Set(UserDefaults.standard.stringArray(forKey:"ccSwitchConnections") ?? [])
+    private var sourceConnected = UserDefaults.standard.bool(forKey:"ccSwitchConnected")
+    private var pinnedConnection = UserDefaults.standard.string(forKey:"pinnedCCSwitchConnection")
+    private var selectedConnection: String?
+    private var sourceError: String?
+    private var discoveringSource = false
+    private var chooseAfterDiscovery = false
+    private var toolsTab = false
+    private var showingLegacy = false
+    private var sourceEpoch = 0
     private let updateInstaller = UpdateInstaller(helperDigest:BundledUpdateHelperIdentity.sha256)
     private var updateState = UpdateMenuState.busy("正在检查更新…")
     private var updateRelease: UpdateRelease?
@@ -25,6 +44,14 @@ final class AppController: NSObject, NSApplicationDelegate {
     }
     private var displayedPeriod: QuotaPeriod? { reading.period(for: selectedProvider, preferred: preferredPeriod(for: selectedProvider)) }
     private func switchPeriod() {
+        if let id = pinnedConnection {
+            let wallets = accountReadings[id]?.balance?.wallets ?? []
+            guard wallets.count > 1 else { return }
+            let current = accountWallet(id)?.currency
+            let index = wallets.firstIndex { $0.currency == current } ?? 0
+            UserDefaults.standard.set(wallets[(index + 1) % wallets.count].currency,forKey:"balanceCurrency." + id)
+            render(); writeDiagnostics(); return
+        }
         let periods = reading.periods(for: selectedProvider)
         guard periods.count > 1, let current = displayedPeriod, let index = periods.firstIndex(of: current) else { return }
         UserDefaults.standard.set(periods[(index + 1) % periods.count].rawValue, forKey: "quotaPeriod." + selectedProvider.rawValue)
@@ -65,6 +92,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         self.timer = timer; timer.tolerance = 2
         RunLoop.main.add(timer, forMode: .common)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
+        NSWorkspace.shared.notificationCenter.addObserver(self,selector:#selector(accessibilityChanged),name:NSWorkspace.accessibilityDisplayOptionsDidChangeNotification,object:nil)
         refresh()
         if !CommandLine.arguments.contains("--preview") { readPreviousUpdateStatus(); checkForUpdate() }
     }
@@ -73,10 +101,111 @@ final class AppController: NSObject, NSApplicationDelegate {
         kimiClient.shutdown(); zcodeClient.shutdown(); minimaxClient.shutdown(); qoderClient.shutdown(); codebuddyClient.shutdown()
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         updateClient.cancel()
+        balanceClient.shutdown()
     }
     @objc private func woke() { refresh() }
+    @objc private func accessibilityChanged() { capsule.needsDisplay = true; if popover.isShown { buildPopover() } }
     @objc private func refresh() {
         for provider in QuotaProviderID.allCases { refresh(provider) }
+        if sourceConnected { discoverConnections() }
+    }
+    private func accountWallet(_ id: String) -> DeepSeekWallet? {
+        let wallets = accountReadings[id]?.balance?.wallets ?? []
+        let preferred = UserDefaults.standard.string(forKey:"balanceCurrency." + id)
+        return wallets.first { $0.currency == preferred } ?? wallets.first
+    }
+    private func discoverConnections(choose: Bool = false) {
+        chooseAfterDiscovery = chooseAfterDiscovery || choose
+        guard !discoveringSource else { return }
+        discoveringSource = true
+        let store = connectionStore
+        sourceQueue.async {
+            let result = Result { try store.discover() }
+            DispatchQueue.main.async {
+                self.discoveringSource = false
+                let shouldChoose = self.chooseAfterDiscovery; self.chooseAfterDiscovery = false
+                switch result {
+                case .success(let values):
+                    self.connections = values; self.sourceError = nil
+                    let ids = Set(values.map(\.id))
+                    for id in self.accountReadings.keys where !ids.contains(id) { self.accountReadings[id]?.invalidate() }
+                    if shouldChoose { self.chooseConnections() }
+                    if self.sourceConnected {
+                        for entry in values where self.linkedConnections.contains(entry.id) && entry.supportsBalance { self.refreshAccount(entry.id) }
+                    }
+                case .failure(let error):
+                    self.sourceError = error.localizedDescription
+                    for id in self.accountReadings.keys { self.accountReadings[id]?.invalidate() }
+                    if shouldChoose { self.chooseConnections() }
+                }
+                self.render(); self.writeDiagnostics()
+            }
+        }
+    }
+    private func refreshAccount(_ id: String) {
+        guard sourceConnected, linkedConnections.contains(id), connections.contains(where:{ $0.id == id && $0.supportsBalance }) else { return }
+        if accountReadings[id] == nil { accountReadings[id] = ConnectedAccountReading() }
+        guard let generation = accountReadings[id]?.begin() else { return }
+        let epoch = sourceEpoch
+        balanceClient.fetch(connectionID:id,onSourceChange:{
+            DispatchQueue.main.async {
+                guard self.sourceEpoch == epoch, self.accountReadings[id]?.generation == generation else { return }
+                self.accountReadings[id]?.sourceChanged(); self.render()
+            }
+        }) { result in
+            DispatchQueue.main.async {
+                guard self.sourceEpoch == epoch, self.linkedConnections.contains(id), self.accountReadings[id]?.complete(result,generation:generation) == true else { return }
+                self.render(); self.writeDiagnostics()
+            }
+        }
+        render()
+    }
+    private func chooseConnections() {
+        let alert = NSAlert(); alert.messageText = "连接 CC Switch 已有服务"
+        alert.informativeText = sourceError ?? "只读所选连接及其已有凭据，不修改 CC Switch。DeepSeek 凭据仅发往 api.deepseek.com 查询余额，不调用模型、不保存 Key。其他服务目前仅识别配置。"
+        alert.addButton(withTitle:"连接所选"); alert.addButton(withTitle:"取消"); alert.addButton(withTitle:"选择数据目录…")
+        let list = ConnectedAccountsView.stack(width:360,spacing:8)
+        var choices: [(String,NSButton)] = []
+        for entry in connections {
+            let title = entry.name + " · " + (entry.harness == "claude" ? "Claude Code" : "Codex") + (entry.supportsBalance ? " · 可查余额" : " · 仅识别")
+            let check = NSButton(checkboxWithTitle:title,target:nil,action:nil)
+            check.lineBreakMode = .byTruncatingTail; check.toolTip = title
+            check.widthAnchor.constraint(lessThanOrEqualToConstant:360).isActive = true
+            check.state = linkedConnections.contains(entry.id) ? .on : .off
+            list.addArrangedSubview(check); choices.append((entry.id,check))
+        }
+        list.layoutSubtreeIfNeeded()
+        let height = max(40,list.fittingSize.height); list.frame = NSRect(x:0,y:0,width:360,height:height)
+        let scroll = NSScrollView(frame:NSRect(x:0,y:0,width:360,height:min(260,height)))
+        scroll.drawsBackground = false; scroll.hasVerticalScroller = height > 260; scroll.documentView = list
+        scroll.contentView.scroll(to:NSPoint(x:0,y:max(0,height - scroll.frame.height)))
+        alert.accessoryView = scroll
+        let response = alert.runModal()
+        if response == .alertThirdButtonReturn {
+            let panel = NSOpenPanel(); panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.allowsMultipleSelection = false
+            panel.message = "选择包含 cc-switch.db 的 CC Switch 数据目录"
+            guard panel.runModal() == .OK, let directory = panel.url else { return }
+            balanceClient.shutdown()
+            sourceEpoch += 1
+            connectionStore = CCSwitchStore(directory:directory,liveDirectory:FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cc-switch"))
+            balanceClient = DeepSeekBalanceClient(store:connectionStore)
+            linkedConnections = []; accountReadings = [:]; connections = []; sourceConnected = false; pinnedConnection = nil
+            UserDefaults.standard.set(directory.path,forKey:"ccSwitchDirectory")
+            saveConnections(); discoverConnections(choose:true); return
+        }
+        guard response == .alertFirstButtonReturn, sourceError == nil else { return }
+        linkedConnections = Set(choices.filter { $0.1.state == .on }.map { $0.0 })
+        sourceConnected = !linkedConnections.isEmpty
+        for id in accountReadings.keys where !linkedConnections.contains(id) { accountReadings[id]?.invalidate() }
+        if let pinnedConnection, !linkedConnections.contains(pinnedConnection) { self.pinnedConnection = nil }
+        selectedConnection = connections.first { linkedConnections.contains($0.id) }?.id
+        saveConnections()
+    }
+    private func saveConnections() {
+        UserDefaults.standard.set(Array(linkedConnections).sorted(),forKey:"ccSwitchConnections")
+        UserDefaults.standard.set(sourceConnected,forKey:"ccSwitchConnected")
+        if let pinnedConnection { UserDefaults.standard.set(pinnedConnection,forKey:"pinnedCCSwitchConnection") }
+        else { UserDefaults.standard.removeObject(forKey:"pinnedCCSwitchConnection") }
     }
     @objc private func manualRefresh() { refresh(selectedProvider) }
     @objc private func authorizeClaude() { refresh(.claude, allowPrompt: true) }
@@ -184,6 +313,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         render(); writeDiagnostics()
     }
     private func exportPreview() {
+        showingLegacy = true
         NSApp.appearance = NSAppearance(named: .aqua)
         for provider in QuotaProviderID.allCases {
             selectedProvider = provider
@@ -218,10 +348,32 @@ final class AppController: NSObject, NSApplicationDelegate {
             if let error = entry.error { value["error"] = error }
             providers[provider.rawValue] = value
         }
-        let value: [String: Any] = ["providers": providers, "selectedProvider": selectedProvider.rawValue, "refreshIntervalSeconds": interval, "loginEnabled": LoginItemManager.enabled, "display": capsule.text, "pid": ProcessInfo.processInfo.processIdentifier]
+        let accounts: [[String:Any]] = connections.filter { linkedConnections.contains($0.id) && $0.supportsBalance }.map { entry in
+            let reading = accountReadings[entry.id] ?? ConnectedAccountReading()
+            var status: [String:Any] = ["service":"DeepSeek","refreshing":reading.refreshing,"successfulRefreshes":reading.successes,"pinned":pinnedConnection == entry.id]
+            if let date = reading.lastSuccess { status["lastSuccess"] = ISO8601DateFormatter().string(from:date) }
+            if let error = reading.error { status["error"] = error }
+            return status
+        }
+        let value: [String: Any] = ["providers": providers, "selectedProvider": selectedProvider.rawValue, "refreshIntervalSeconds": interval, "loginEnabled": LoginItemManager.enabled, "display": capsule.text, "pid": ProcessInfo.processInfo.processIdentifier,"ccSwitchConnected":sourceConnected,"apiAccounts":accounts]
         if let data = try? JSONSerialization.data(withJSONObject: value, options: [.prettyPrinted, .sortedKeys]) { try? data.write(to: stateDirectory.appendingPathComponent("status.json"), options: .atomic) }
     }
     private func render() {
+        if let id = pinnedConnection {
+            let entry = accountReadings[id] ?? ConnectedAccountReading(), wallet = accountWallet(id)
+            capsule.showsWallet = true; capsule.remaining = nil; capsule.periodText = "额"
+            capsule.canSwitchPeriod = (entry.balance?.wallets.count ?? 0) > 1
+            capsule.stale = entry.error != nil || sourceError != nil
+            capsule.text = wallet.map { $0.capsuleAmount + (capsule.stale ? "!" : "") } ?? (entry.refreshing ? "···" : "—")
+            let sourceExists = connections.contains { $0.id == id } && linkedConnections.contains(id)
+            let title = "DeepSeek 官方 API 余额：" + (wallet?.displayAmount ?? "尚无有效读数") + (sourceExists ? "" : "；来源已移除或不可读") + (capsule.stale ? "；上次数据已过期" : "")
+            capsule.detailButton.toolTip = title; capsule.detailButton.setAccessibilityLabel(title + "，打开账户详情")
+            capsule.periodButton.toolTip = capsule.canSwitchPeriod ? "切换余额币种" : "账户钱包余额"
+            capsule.periodButton.setAccessibilityLabel(capsule.periodButton.toolTip!)
+            if popover.isShown { buildPopover() }
+            return
+        }
+        capsule.showsWallet = false
         let period = displayedPeriod
         let remaining = reading.window(for: selectedProvider, period: period)?.remaining
         capsule.periodText = reading.periodLabel(for: selectedProvider, period: period)
@@ -252,6 +404,39 @@ final class AppController: NSObject, NSApplicationDelegate {
         return field
     }
     private func buildPopover() {
+        let content: NSStackView
+        if showingLegacy {
+            content = ConnectedAccountsView.stack(width:380)
+            content.edgeInsets = NSEdgeInsets(top:12,left:11,bottom:0,right:11)
+            content.addArrangedSubview(AccountActionButton("返回账户",id:"back-accounts") { self.showingLegacy = false; self.buildPopover() })
+            content.addArrangedSubview(legacyContent())
+        } else {
+            let model = ConnectedAccountsPresentation(connections:connections,enabled:linkedConnections,readings:accountReadings,selectedID:selectedConnection ?? pinnedConnection,pinnedID:pinnedConnection,currency:selectedConnection.flatMap { UserDefaults.standard.string(forKey:"balanceCurrency." + $0) },sourceError:sourceError,discovering:discoveringSource,tools:toolsTab)
+            content = ConnectedAccountsView.build(model,actions:ConnectedAccountsActions(
+                changeTab:{ self.toolsTab = $0; self.buildPopover() },
+                select:{ self.selectedConnection = $0; self.buildPopover() },
+                pin:{ id in self.pinnedConnection = self.pinnedConnection == id ? nil : id; self.saveConnections(); self.render(); self.writeDiagnostics() },
+                refresh:{ self.refreshAccount($0) },
+                connect:{ self.discoverConnections(choose:true) },
+                legacy:{ self.showingLegacy = true; self.buildPopover() }))
+        }
+        let focused = (popover.contentViewController?.view.window?.firstResponder as? NSView)?.identifier
+        content.layoutSubtreeIfNeeded()
+        let height = max(240,content.fittingSize.height)
+        let maxHeight = max(240,min(650,(status.button?.window?.screen?.visibleFrame.height ?? 730) - 80))
+        content.frame = NSRect(x:0,y:0,width:380,height:height)
+        let scroll = NSScrollView(frame:NSRect(x:0,y:0,width:380,height:min(height,maxHeight)))
+        scroll.drawsBackground = false; scroll.hasVerticalScroller = height > maxHeight; scroll.documentView = content
+        scroll.contentView.scroll(to:NSPoint(x:0,y:max(0,height - scroll.frame.height)))
+        let controller = NSViewController(); controller.view = GlassAppearance.wrap(scroll,size:scroll.frame.size)
+        popover.contentViewController = controller; popover.contentSize = scroll.frame.size
+        controller.view.window?.autorecalculatesKeyViewLoop = true
+        if let focused {
+            func find(_ view: NSView) -> NSView? { view.identifier == focused ? view : view.subviews.lazy.compactMap { find($0) }.first }
+            if let target = find(controller.view) { controller.view.window?.makeFirstResponder(target) }
+        }
+    }
+    private func legacyContent() -> NSStackView {
         let stack = NSStackView(); stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = 9
         stack.edgeInsets = NSEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
         stack.addArrangedSubview(label("余度 QuotaNest", size: 18, bold: true))
@@ -317,14 +502,7 @@ final class AppController: NSObject, NSApplicationDelegate {
         stack.addArrangedSubview(NSButton(title: "退出余度 QuotaNest", target: self, action: #selector(quit)))
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.widthAnchor.constraint(equalToConstant: 358).isActive = true
-        stack.layoutSubtreeIfNeeded()
-        let height = max(240, stack.fittingSize.height)
-        stack.frame = NSRect(x: 0, y: 0, width: 358, height: height)
-        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 358, height: min(height, 650)))
-        scroll.drawsBackground = false; scroll.hasVerticalScroller = height > 650; scroll.documentView = stack
-        scroll.contentView.scroll(to: NSPoint(x: 0, y: max(0, height - scroll.frame.height)))
-        let controller = NSViewController(); controller.view = scroll
-        popover.contentViewController = controller; popover.contentSize = scroll.frame.size
+        return stack
     }
     private func dateString(_ date: Date) -> String {
         let formatter = DateFormatter(); formatter.locale = Locale(identifier: "zh_CN"); formatter.dateFormat = "MM-dd HH:mm:ss"; return formatter.string(from: date)

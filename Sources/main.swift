@@ -1,6 +1,36 @@
 import AppKit
 import Darwin
 signal(SIGPIPE, SIG_IGN)
+if CommandLine.arguments.contains("--check-connections") || CommandLine.arguments.contains("--check-deepseek") {
+    do {
+        let standard = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cc-switch")
+        let directory = UserDefaults.standard.string(forKey:"ccSwitchDirectory").map { URL(fileURLWithPath:$0) } ?? standard
+        let store = CCSwitchStore(directory:directory,liveDirectory:standard)
+        let connections = try store.discover()
+        if CommandLine.arguments.contains("--check-connections") {
+            let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted,.sortedKeys]
+            print(String(data:try encoder.encode(connections),encoding:.utf8)!); exit(0)
+        }
+        let selected: String? = CommandLine.arguments.firstIndex(of:"--connection-id").flatMap { $0 + 1 < CommandLine.arguments.count ? CommandLine.arguments[$0 + 1] : nil }
+        let supported = connections.filter { $0.supportsBalance && (selected == nil || selected == $0.id) }
+        guard !supported.isEmpty else { throw ConnectedAccountError(message:"没有匹配的 DeepSeek 官方连接；请在 CC Switch 检查") }
+        let client = DeepSeekBalanceClient(store:store), group = DispatchGroup(), lock = NSLock()
+        var success = true
+        for connection in supported {
+            group.enter()
+            client.fetch(connectionID:connection.id) { result in
+                lock.lock(); defer { lock.unlock(); group.leave() }
+                switch result {
+                case .success(let balance):
+                    for wallet in balance.wallets { print("DeepSeek OK " + wallet.displayAmount + "; topped-up=" + DeepSeekWallet.amount(wallet.toppedUp) + "; granted=" + DeepSeekWallet.amount(wallet.granted)) }
+                case .failure(let error): success = false; print(error.localizedDescription)
+                }
+            }
+        }
+        let complete = group.wait(timeout:.now()+35) == .success
+        client.shutdown(); exit(complete && success ? 0 : 1)
+    } catch { print(error.localizedDescription); exit(1) }
+}
 if CommandLine.arguments.contains("--check-all") {
     let group = DispatchGroup()
     let codex = CodexClient(), claude = ClaudeQuotaClient(), antigravity = AntigravityQuotaClient()

@@ -46,6 +46,14 @@ For an unreliable Clash TUN route, the app preference `codexHTTPSProxy` can poin
 
 ## Use
 
+### Existing CC Switch connections and DeepSeek balances
+
+Choose **连接已有工具…** in the Accounts view to select existing Claude Code / Codex connections from CC Switch (database schema 18–20). Reads are local and read-only; the data directory can be selected without entering a key. This version queries balances only for official DeepSeek endpoints, using existing credentials and the fixed HTTPS balance API. It does not change routing, execute usage scripts/helpers, store another key, or send inference requests. Other services are identified with an unsupported-query label. New GLM, Kimi API, Kilo, Kiro and Grok adapters are outside this release's implementation.
+
+Pin a wallet amount to the 64-point menu bar capsule, or unpin it to restore the previous official subscription. Paid and granted balances are components of the reported total, not additional balances to sum again. Accounts and Tools views show configuration provenance; saved routing is not proof of every running session's actual provider. Original platforms, application updates and login startup remain under **官方套餐与应用设置**.
+
+The glass-style interface supports light/dark appearances and reduced transparency. The macOS 15 compatibility appearance is locally verified; builds made with a suitable SDK use native Liquid Glass for the popover on macOS 26+, which has not been tested on a physical newer-system device.
+
 Select a provider in the popover: **Codex**, **Claude Code**, or **Antigravity**. The capsule reports the lowest remaining value among the selected period’s applicable windows (Codex uses its main bucket; Antigravity uses Gemini groups only). If Gemini quota is unavailable, Antigravity shows `—` rather than substituting another model. All model groups remain available in the popover. It is not an average across models. Reset times use your system time zone.
 
 Provider accents are teal for Codex, terracotta for Claude and blue for Antigravity. `!` means refresh failed and the value is stale; `—` means no valid data yet. The app also refreshes on launch and wake. Choose **登录时启动** to launch at login, **立即刷新** to refresh, and **退出** to quit. After moving the installed app, toggle launch at login off and on to update its path.
@@ -81,6 +89,6 @@ Issues and pull requests are welcome. Include OS/app/CLI versions and redacted r
 
 [MIT License](LICENSE). Original app icon generated with AI assistance; third-party trademarks belong to their owners.
 
-The compact capsule uses provider marks instead of letter abbreviations. Its colored width tracks the remaining percentage; the depleted portion is black. A failed refresh preserves the last known fraction in gray with `!`. Updates follow real quota readings every 60 seconds. Codex transient service/connection failures get one reconnect and retry within a shared 30-second budget; authentication, permission and rate-limit errors do not retry immediately. Exhausted retries still show stale data explicitly.
+The compact capsule uses provider marks instead of letter abbreviations. Its colored width tracks the remaining percentage over a translucent base. Wallet amounts have no percentage fill. A failed refresh preserves the last known reading with `!`. Updates follow real quota readings every 60 seconds. Codex transient service/connection failures get one reconnect and retry within a shared 30-second budget; authentication, permission and rate-limit errors do not retry immediately. Exhausted retries still show stale data explicitly.
 
 The 64-point capsule has a narrow period button after a vertical separator. Click `5h` / `1w` / `额` to switch available cached hourly, weekly or billing quotas instantly. Each provider remembers its selection; hours are preferred initially. With only one valid period the switch is disabled. Click the left portion for details. The progress fill applies only to the left portion; the period button stays black.

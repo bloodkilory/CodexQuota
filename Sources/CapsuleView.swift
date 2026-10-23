@@ -5,6 +5,7 @@ final class CapsuleView: NSView {
     var text = "—" { didSet { needsDisplay = true } }
     var remaining: Double? { didSet { needsDisplay = true } }
     var stale = false { didSet { needsDisplay = true } }
+    var showsWallet = false { didSet { needsDisplay = true } }
     var periodText = "1w" { didSet { needsDisplay = true } }
     var canSwitchPeriod = false { didSet { periodButton.isEnabled = canSwitchPeriod; needsDisplay = true } }
     var periodAction: (() -> Void)?
@@ -34,6 +35,7 @@ final class CapsuleView: NSView {
         periodButton.frame = CGRect(x: dividerX, y: 0, width: 16, height: bounds.height)
     }
     override func layout() { super.layout(); layoutButtons() }
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); needsDisplay = true }
     var accentColor: NSColor {
         switch provider {
         case .codex: return NSColor(srgbRed: 0.20, green: 0.44, blue: 0.39, alpha: 1)
@@ -50,14 +52,17 @@ final class CapsuleView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let rect = CGRect(x: 1, y: (bounds.height - 18) / 2, width: bounds.width - 2, height: 18)
         let shape = NSBezierPath(roundedRect: rect, xRadius: 9, yRadius: 9)
-        NSColor.black.setFill()
+        let dark = GlassAppearance.isDark(effectiveAppearance)
+        let solid = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        let ink: NSColor = dark ? .white : NSColor(white:0.12,alpha:1)
+        GlassAppearance.base(dark:dark,solid:solid).setFill()
         shape.fill()
 
         if let remaining, remaining.isFinite {
             let fraction = min(100, max(0, remaining)) / 100
             let color: NSColor
-            if stale { color = NSColor(srgbRed: 0.30, green: 0.32, blue: 0.35, alpha: 1) }
-            else { color = accentColor }
+            if stale { color = NSColor.gray.withAlphaComponent(solid ? 0.65 : 0.35) }
+            else { color = accentColor.withAlphaComponent(solid ? 0.72 : dark ? 0.55 : 0.38) }
             NSGraphicsContext.saveGraphicsState()
             shape.addClip()
             color.setFill()
@@ -65,16 +70,19 @@ final class CapsuleView: NSView {
             NSGraphicsContext.restoreGraphicsState()
         }
 
-        // A subtle edge keeps the black, depleted section visible on dark menu bars.
-        NSColor.white.withAlphaComponent(0.20).setStroke()
+        // A quiet glass rim keeps the capsule visible without a solid black shell.
+        NSColor.white.withAlphaComponent(dark ? 0.30 : 0.75).setStroke()
         let outline = NSBezierPath(roundedRect: rect.insetBy(dx: 0.25, dy: 0.25), xRadius: 8.75, yRadius: 8.75)
         outline.lineWidth = 0.5
         outline.stroke()
-        ProviderMark.draw(provider, in: CGRect(x: rect.minX + 3, y: rect.midY - 5, width: 10, height: 10))
+        if showsWallet { ProviderMark.drawDeepSeek(in:CGRect(x:rect.minX + 3,y:rect.midY - 5,width:10,height:10)) }
+        else { ProviderMark.draw(provider,in:CGRect(x:rect.minX + 3,y:rect.midY - 5,width:10,height:10),tint:ink) }
 
+        var fontSize: CGFloat = 9
+        while (text as NSString).size(withAttributes:[.font:NSFont.monospacedDigitSystemFont(ofSize:fontSize,weight:.semibold)]).width > 30 && fontSize > 6.5 { fontSize -= 0.5 }
         let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .semibold),
-            .foregroundColor: NSColor.white
+            .font: NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .semibold),
+            .foregroundColor: ink
         ]
         let label = text as NSString
         let size = label.size(withAttributes: attrs)
@@ -82,11 +90,11 @@ final class CapsuleView: NSView {
         let separator = NSBezierPath()
         separator.move(to: CGPoint(x: dividerX, y: rect.minY + 3))
         separator.line(to: CGPoint(x: dividerX, y: rect.maxY - 3))
-        NSColor.white.withAlphaComponent(0.35).setStroke()
+        ink.withAlphaComponent(0.22).setStroke()
         separator.lineWidth = 0.5; separator.stroke()
         let periodAttrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: periodText.count > 3 ? 6 : 7.5, weight: .medium),
-            .foregroundColor: NSColor.white.withAlphaComponent(canSwitchPeriod ? 1 : 0.55)
+            .foregroundColor: ink.withAlphaComponent(canSwitchPeriod ? 1 : 0.60)
         ]
         let periodSize = (periodText as NSString).size(withAttributes: periodAttrs)
         (periodText as NSString).draw(at: CGPoint(x: (dividerX + rect.maxX) / 2 - periodSize.width / 2, y: rect.midY - periodSize.height / 2), withAttributes: periodAttrs)

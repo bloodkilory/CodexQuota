@@ -15,7 +15,18 @@ enum ProviderMark {
         }
         return marks
     }()
-    static func draw(_ provider: QuotaProviderID, in rect: CGRect) {
+    private static let deepseek: NSImage? = {
+        let bundled = Bundle.main.resourceURL?.appendingPathComponent("provider-marks/deepseek.svg")
+        let development = URL(fileURLWithPath:FileManager.default.currentDirectoryPath).appendingPathComponent("assets/provider-marks/deepseek.svg")
+        return [bundled,development].compactMap { $0 }.compactMap { NSImage(contentsOf:$0) }.first
+    }()
+    static func drawDeepSeek(in rect: CGRect) {
+        guard let image = deepseek else { return }
+        let scale = min(rect.width / image.size.width,rect.height / image.size.height)
+        let size = NSSize(width:image.size.width * scale,height:image.size.height * scale)
+        image.draw(in:NSRect(x:rect.midX - size.width / 2,y:rect.midY - size.height / 2,width:size.width,height:size.height))
+    }
+    static func draw(_ provider: QuotaProviderID, in rect: CGRect, tint: NSColor = .white) {
         if let image = officialMarks[provider] {
             let scale = min(rect.width / image.size.width, rect.height / image.size.height)
             let size = NSSize(width: image.size.width * scale, height: image.size.height * scale)
@@ -27,7 +38,7 @@ enum ProviderMark {
         guard let context = NSGraphicsContext.current?.cgContext else { return }
         context.saveGState()
         defer { context.restoreGState() }
-        context.setFillColor(NSColor.white.cgColor)
+        context.setFillColor(tint.cgColor)
         let path: CGPath
         switch provider {
         case .codex: path = codex
