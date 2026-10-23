@@ -25,7 +25,7 @@ Get-FileHash .\QuotaNest-1.9.0-beta.1-windows-x64-setup.exe -Algorithm SHA256
 
 ## Verification / 验证边界
 
-CI uses synthetic credentials and database fixtures. It builds the actual Windows installer, runs Rust/frontend tests, installs the app in the runner, drives the native WebView2 with tauri-driver, saves English/Chinese screenshots, and uninstalls it. Successful CI does **not** prove real account querying or the complete Windows 11 desktop experience.
+CI uses synthetic credentials and database fixtures. It builds the actual Windows installer, runs Rust/frontend tests, installs the app in the runner, drives the native WebView2 with Microsoft Edge WebDriver, saves English/Chinese screenshots, and uninstalls it. Successful CI does **not** prove real account querying or the complete Windows 11 desktop experience.
 
 Release acceptance still needs Windows users to verify: real CC Switch versions/accounts, native Codex login, Clash/proxy behavior, tray position and overflow, 100%/125%/150% DPI, multiple monitors, sign-in startup and upgrade from an earlier installed build. Do not send keys, tokens, full databases, or unredacted account screenshots in bug reports.
 

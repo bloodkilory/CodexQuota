@@ -29,7 +29,7 @@ $app = Start-Process -FilePath $exe -ArgumentList '--demo' -PassThru -RedirectSt
 Start-Sleep -Seconds 5
 $app.Refresh()
 if ($app.HasExited) { throw "Native app exited during startup: $($app.ExitCode)" }
-Stop-Process -Id $app.Id -Force
+taskkill /PID $app.Id /T /F | Out-Null
 $app.WaitForExit()
 Write-Host 'PASS installed native application starts independently'
 # Run the actual installed binary in fixture mode through WebView2.

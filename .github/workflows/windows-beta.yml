@@ -50,10 +50,10 @@ jobs:
         run: npm run tauri build -- --bundles nsis
       - name: Prepare matching WebDriver
         run: |
-          cargo install tauri-driver --locked
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $edgeExe = "${env:ProgramFiles(x86)}/Microsoft/Edge/Application/msedge.exe"
-          $version = (Get-Item $edgeExe).VersionInfo.ProductVersion
+          $runtime = Get-ChildItem "${env:ProgramFiles(x86)}/Microsoft/EdgeWebView/Application/*/msedgewebview2.exe" | Sort-Object { [version]$_.VersionInfo.ProductVersion } -Descending | Select-Object -First 1
+          if (-not $runtime) { throw 'WebView2 runtime missing' }
+          $version = $runtime.VersionInfo.ProductVersion
+          Write-Host "Testing WebView2 runtime $version"
           $url = "https://msedgedriver.microsoft.com/$version/edgedriver_win64.zip"
           Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP/edgedriver.zip"
           Expand-Archive "$env:RUNNER_TEMP/edgedriver.zip" "$env:RUNNER_TEMP/edgedriver" -Force
