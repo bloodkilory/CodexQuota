@@ -9,20 +9,8 @@ enum GlassAppearance {
     static func wrap(_ content: NSView, size: NSSize) -> NSView {
         let frame = NSRect(origin:.zero,size:size)
         content.frame = frame; content.autoresizingMask = [.width,.height]
-        let reduced = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
-        #if QUOTANEST_HAS_LIQUID_GLASS
-        if #available(macOS 26.0,*), !reduced {
-            let glass = NSGlassEffectView(frame:frame)
-            glass.cornerRadius = 24; glass.contentView = content
-            return glass
-        }
-        #endif
-        let glass = NSVisualEffectView(frame:frame)
-        glass.material = .popover; glass.blendingMode = .behindWindow; glass.state = .active
-        glass.wantsLayer = true; glass.layer?.cornerRadius = 22; glass.layer?.masksToBounds = true
-        if reduced { glass.material = .windowBackground }
-        glass.addSubview(content)
-        return glass
+        // NSPopover draws the backdrop, arrow and corners as one continuous surface.
+        return content
     }
     static func card(_ content: NSView, width: CGFloat, height: CGFloat) -> NSView {
         let box = NSBox(); box.boxType = .custom; box.titlePosition = .noTitle

@@ -28,7 +28,9 @@ for language in [InterfaceLanguage.chinese,.english] {
     func picker(_ view: NSView) -> DisplaySourcePicker { descendants(view).compactMap { $0 as? DisplaySourcePicker }.first! }
     let first = view()
     let expectedSettings = language == .english ? "Settings" : "设置"
-    assert(descendants(first).compactMap { $0 as? NSButton }.contains { $0.title == expectedSettings })
+    let settingsButton = descendants(first).first { $0.identifier?.rawValue == "settings" } as! NSButton
+    assert(settingsButton.title.isEmpty && settingsButton.image != nil,"settings is an icon-only action")
+    assert(settingsButton.toolTip == expectedSettings && settingsButton.accessibilityLabel() == expectedSettings,"settings keeps a localized tooltip and accessible name")
     assert(descendants(first).compactMap { ($0 as? NSTextField)?.stringValue }.contains(language == .english ? "Menu bar shows" : "菜单栏显示"))
     assert(first.arrangedSubviews.firstIndex(of:picker(first)) == 2)
     assert(descendants(first).filter { $0 is NSPopUpButton }.count == 1)
@@ -73,6 +75,11 @@ for language in [InterfaceLanguage.chinese,.english] {
         assert(bounds.minX >= -1 && bounds.maxX <= 381,"controls must fit the 380-point popover")
     }
     assert(picker(content).convert(picker(content).bounds,to:content).maxY > height - 130)
+    let gear = descendants(content).first { $0.identifier?.rawValue == "settings" }!
+    let title = descendants(content).compactMap { $0 as? NSTextField }.first { $0.stringValue == L("余度 QuotaNest") }!
+    let gearBounds = gear.convert(gear.bounds,to:content), titleBounds = title.convert(title.bounds,to:content)
+    assert(gearBounds.minX > titleBounds.maxX && abs(gearBounds.midY - titleBounds.midY) < 1,"settings sits to the right of the title on the same row")
+    assert(gearBounds.maxX > 340 && gearBounds.maxY > height - 55,"settings stays in the top-right corner")
     if case .official = source {
         let labels = descendants(content).compactMap { ($0 as? NSTextField)?.stringValue }
         assert(labels.contains(L("%@    剩余 %@",L("%@ 小时额度","5"),"76.0%")))

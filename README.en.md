@@ -58,7 +58,7 @@ Choose **Settings → Connect existing tools…** to select existing Claude Code
 
 Select a wallet amount or official subscription from the same top selector. Paid and granted balances are components of the reported total, not additional balances to sum again. Settings shows configuration provenance; saved routing is not proof of every running session's actual provider. Shared credentials deduplicate concurrent balance queries. Wallet amounts preserve CNY/USD and the reported precision; the right capsule button switches currencies only when multiple currencies are available.
 
-The glass-style interface supports light/dark appearances and reduced transparency. The macOS 15 compatibility appearance is locally verified; builds made with a suitable SDK use native Liquid Glass for the popover on macOS 26+, which has not been tested on a physical newer-system device.
+The glass-style interface supports light/dark appearances and reduced transparency. The system NSPopover draws the backdrop, arrow, and rounded corners as one surface; inner cards retain their glass styling.
 
 Select a provider in the popover: **Codex**, **Claude Code**, or **Antigravity**. The capsule reports the lowest remaining value among the selected period’s applicable windows (Codex uses its main bucket; Antigravity uses Gemini groups only). If Gemini quota is unavailable, Antigravity shows `—` rather than substituting another model. All model groups remain available in the popover. It is not an average across models. Reset times use your system time zone.
 

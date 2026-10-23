@@ -5,7 +5,6 @@ APP="$PWD/.build/QuotaNest.app"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" .build/bin
 SDK="$(xcrun --sdk macosx --show-sdk-path)"
 APP_FLAGS=(-swift-version 5 -O)
-if [ -f "$SDK/System/Library/Frameworks/AppKit.framework/Headers/NSGlassEffectView.h" ]; then APP_FLAGS+=(-D QUOTANEST_HAS_LIQUID_GLASS); fi
 for ARCH in arm64 x86_64; do
     swiftc -swift-version 5 -O -sdk "$SDK" -target "$ARCH-apple-macosx13.0" Sources/Localization.swift Sources/UpdateModels.swift Sources/UpdateHelperContract.swift Sources/UpdateReplacement.swift Helpers/Update/main.swift -o ".build/bin/QuotaNestUpdateHelper-$ARCH"
 done

@@ -29,6 +29,8 @@ for dark in [false,true] {
     assert(height > 300 && height < 750)
     content.frame = NSRect(x:0,y:0,width:380,height:height)
     let surface = GlassAppearance.wrap(content,size:content.frame.size)
+    assert(!(surface is NSVisualEffectView),"NSPopover owns the backdrop; a second effect view produces mismatched corner edges")
+    assert(surface.layer?.cornerRadius ?? 0 == 0,"popover content must not draw its own rounded boundary")
     let window = NSWindow(contentRect:surface.bounds,styleMask:[.borderless],backing:.buffered,defer:false)
     window.appearance = app.appearance; window.contentView = surface
     window.layoutIfNeeded(); surface.layoutSubtreeIfNeeded()

@@ -64,7 +64,17 @@ enum ConnectedAccountsView {
     static func build(_ model: ConnectedAccountsPresentation, officialDetails: NSView? = nil, actions: ConnectedAccountsActions) -> NSStackView {
         let root = stack(width:width,spacing:12)
         root.edgeInsets = NSEdgeInsets(top:18,left:18,bottom:16,right:18)
-        root.addArrangedSubview(text(L("余度 QuotaNest"),size:18,bold:true))
+        let header = NSStackView(); header.orientation = .horizontal; header.alignment = .centerY; header.spacing = 12
+        header.widthAnchor.constraint(equalToConstant:344).isActive = true
+        header.addArrangedSubview(text(L("余度 QuotaNest"),size:18,bold:true,width:304))
+        let settings = AccountActionButton("",id:"settings",handler:actions.settings)
+        settings.image = NSImage(systemSymbolName:"gearshape",accessibilityDescription:L("设置"))
+        settings.imagePosition = .imageOnly; settings.isBordered = false
+        settings.toolTip = L("设置"); settings.setAccessibilityLabel(L("设置"))
+        settings.widthAnchor.constraint(equalToConstant:28).isActive = true
+        settings.heightAnchor.constraint(equalToConstant:28).isActive = true
+        header.addArrangedSubview(settings)
+        root.addArrangedSubview(header)
         root.addArrangedSubview(text(L("菜单栏显示"),size:11,secondary:true))
         let accounts = model.connections.filter { model.enabled.contains($0.id) && $0.supportsBalance }
         var sources = QuotaProviderID.allCases.map { DisplaySource.official($0) } + accounts.map { .api($0.id) }
@@ -104,7 +114,6 @@ enum ConnectedAccountsView {
             card.layoutSubtreeIfNeeded()
             root.addArrangedSubview(GlassAppearance.card(card,width:344,height:card.fittingSize.height))
         }
-        root.addArrangedSubview(AccountActionButton(L("设置"),id:"settings",handler:actions.settings))
         return root
     }
 }
